@@ -31,6 +31,21 @@
 
   <title>option_b</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Google Maps for Flutter web local testing:
+
+    1. Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key.
+    2. Keep the key restricted in Google Cloud, for example to http://localhost/*.
+    3. Uncomment the script below.
+    4. Run with the same key as a dart define so Places/Directions work:
+       flutter run -d chrome --dart-define=OPTION_B_USE_GOOGLE_MAPS=true --dart-define=OPTION_B_GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY
+
+    Leave this script commented out to use Option B's fake map fallback.
+  -->
+  
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDc2sSOv_xHqVRD5HovOCXlNz2P4mqq7uk"></script>
+  
 </head>
 <body>
   <!--

@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  geolocator: ^14.0.2
+  google_maps_flutter: ^2.13.1
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
