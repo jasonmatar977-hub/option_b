@@ -53,6 +53,9 @@ class AppMap extends StatefulWidget {
     required this.pickup,
     this.destination,
     this.driver,
+    this.offerMarkers = const [],
+    this.selectedMarkerId,
+    this.onMarkerTap,
     this.routePoints = const [],
     this.cameraUpdateKey = 0,
     this.height,
@@ -63,6 +66,9 @@ class AppMap extends StatefulWidget {
   final DemoMapPoint pickup;
   final DemoMapPoint? destination;
   final DemoMapPoint? driver;
+  final List<DemoMapMarker> offerMarkers;
+  final String? selectedMarkerId;
+  final ValueChanged<String>? onMarkerTap;
   final List<DemoMapPoint> routePoints;
   final int cameraUpdateKey;
   final double? height;
@@ -82,6 +88,7 @@ class _AppMapState extends State<AppMap> {
   /// when the script never appears, fall back to the fake map.
   bool _webGmapsCheckDone = false;
   bool _webGmapsReady = false;
+  String _webGmapsReason = 'Loading map';
 
   @override
   void initState() {
@@ -92,30 +99,48 @@ class _AppMapState extends State<AppMap> {
         setState(() {
           _webGmapsCheckDone = true;
           _webGmapsReady = optionBGmapsJsReady();
+          _webGmapsReason = optionBGmapsStatusReason();
         });
       });
     } else {
       _webGmapsCheckDone = true;
       _webGmapsReady = true;
+      _webGmapsReason = kUseGoogleMaps
+          ? 'native map platform'
+          : 'Google Maps disabled';
     }
   }
 
   bool get _canUseGoogleMap =>
       kUseGoogleMaps && (!kIsWeb || (_webGmapsCheckDone && _webGmapsReady));
 
+  bool get _isLoadingGoogleMap =>
+      kUseGoogleMaps && kIsWeb && !_webGmapsCheckDone;
+
   @override
   void didUpdateWidget(covariant AppMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.cameraUpdateKey != oldWidget.cameraUpdateKey ||
         widget.pickup != oldWidget.pickup ||
-        widget.destination != oldWidget.destination) {
+        widget.destination != oldWidget.destination ||
+        widget.offerMarkers.length != oldWidget.offerMarkers.length ||
+        widget.selectedMarkerId != oldWidget.selectedMarkerId) {
       _moveCameraToVisibleMarkers();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final child = _canUseGoogleMap ? _googleMap() : _fallbackMap();
+    final child = _canUseGoogleMap
+        ? _mapWithStatusLabel(
+            child: _googleMap(),
+            label: 'Google Maps active',
+            icon: Icons.map_outlined,
+          )
+        : _fallbackMap(
+            label: _isLoadingGoogleMap ? 'Loading map' : 'Demo map fallback',
+            reason: _fallbackReason,
+          );
     if (widget.height == null) {
       return child;
     }
@@ -144,6 +169,19 @@ class _AppMapState extends State<AppMap> {
             BitmapDescriptor.hueAzure,
           ),
         ),
+      ...widget.offerMarkers.map((marker) {
+        final selected = widget.selectedMarkerId == marker.id;
+        return Marker(
+          markerId: MarkerId(marker.id),
+          position: marker.point.latLng,
+          infoWindow: InfoWindow(title: marker.label),
+          onTap: () => widget.onMarkerTap?.call(marker.id),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            selected ? BitmapDescriptor.hueYellow : BitmapDescriptor.hueRed,
+          ),
+          zIndexInt: selected ? 2 : 1,
+        );
+      }),
     };
 
     final routePoints = widget.routePoints.isNotEmpty
@@ -194,6 +232,7 @@ class _AppMapState extends State<AppMap> {
       if (widget.destination != null) widget.destination!,
       if (widget.driver != null) widget.driver!,
       ...widget.routePoints,
+      ...widget.offerMarkers.map((marker) => marker.point),
     ];
     if (points.length < 2) {
       await controller.animateCamera(
@@ -214,18 +253,41 @@ class _AppMapState extends State<AppMap> {
       minLng = math.min(minLng, point.longitude);
       maxLng = math.max(maxLng, point.longitude);
     }
-    await controller.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
+    try {
+      if ((maxLat - minLat).abs() < 0.0001 &&
+          (maxLng - minLng).abs() < 0.0001) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: widget.pickup.latLng, zoom: 15),
+          ),
+        );
+        return;
+      }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(minLat, minLng),
+            northeast: LatLng(maxLat, maxLng),
+          ),
+          72,
         ),
-        72,
-      ),
-    );
+      );
+    } catch (_) {
+      // Keep the active map visible even if a web camera update races layout.
+    }
   }
 
-  Widget _fallbackMap() {
+  String get _fallbackReason {
+    if (!kUseGoogleMaps) {
+      return 'Google Maps disabled';
+    }
+    if (_isLoadingGoogleMap) {
+      return 'JS loading';
+    }
+    return _webGmapsReason;
+  }
+
+  Widget _fallbackMap({required String label, required String reason}) {
     return FakeMapBackground(
       child: Stack(
         fit: StackFit.expand,
@@ -257,29 +319,119 @@ class _AppMapState extends State<AppMap> {
               color: Color(0xFF00796B),
               label: 'Driver',
             ),
-          if (!_canUseGoogleMap)
-            Positioned(
-              right: 12,
-              bottom: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  'Demo map',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
+          ...List.generate(widget.offerMarkers.length, (index) {
+            final marker = widget.offerMarkers[index];
+            final selected = widget.selectedMarkerId == marker.id;
+            return _FallbackOfferMarker(
+              marker: marker,
+              selected: selected,
+              alignment: _fallbackOfferAlignment(index),
+              onTap: () => widget.onMarkerTap?.call(marker.id),
+            );
+          }),
+          _MapStatusLabel(
+            label: label,
+            reason: reason,
+            icon: Icons.layers_outlined,
+            alignment: Alignment.bottomRight,
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _mapWithStatusLabel({
+    required Widget child,
+    required String label,
+    required IconData icon,
+  }) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        _MapStatusLabel(
+          label: label,
+          icon: icon,
+          alignment: Alignment.bottomRight,
+        ),
+      ],
+    );
+  }
+
+  Alignment _fallbackOfferAlignment(int index) {
+    const alignments = [
+      Alignment(0.34, -0.42),
+      Alignment(0.72, -0.08),
+      Alignment(0.42, 0.34),
+      Alignment(-0.02, -0.34),
+      Alignment(0.76, 0.42),
+      Alignment(-0.36, -0.08),
+    ];
+    return alignments[index % alignments.length];
+  }
+}
+
+class _MapStatusLabel extends StatelessWidget {
+  const _MapStatusLabel({
+    required this.label,
+    this.reason,
+    required this.icon,
+    required this.alignment,
+  });
+
+  final String label;
+  final String? reason;
+  final IconData icon;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: _accentBlue),
+              const SizedBox(width: 5),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (reason != null && reason!.isNotEmpty)
+                    Text(
+                      reason!,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -512,6 +664,68 @@ class _FallbackMarker extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FallbackOfferMarker extends StatelessWidget {
+  const _FallbackOfferMarker({
+    required this.marker,
+    required this.selected,
+    required this.alignment,
+    required this.onTap,
+  });
+
+  final DemoMapMarker marker;
+  final bool selected;
+  final Alignment alignment;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? _accentYellow : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? Colors.black87 : const Color(0xFFD32F2F),
+              width: selected ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: selected ? 12 : 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                marker.icon,
+                size: 17,
+                color: selected ? Colors.black87 : const Color(0xFFD32F2F),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                marker.label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

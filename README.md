@@ -20,22 +20,20 @@ Enable these Google APIs for the key used by this demo:
 
 ### Web / Chrome
 
-Open `web/index.html` and find the Google Maps script placeholder:
-
-```html
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
-```
-
-Replace `YOUR_GOOGLE_MAPS_API_KEY` with your actual key and uncomment the script for local testing. Keep the key restricted in Google Cloud, for example to:
-
-```text
-http://localhost/*
-```
-
-Then run:
+For local Chrome testing, pass the API key at runtime. Do not commit a real key:
 
 ```bash
 flutter run -d chrome --dart-define=OPTION_B_USE_GOOGLE_MAPS=true --dart-define=OPTION_B_GOOGLE_MAPS_API_KEY=YOUR_KEY
+```
+
+`Option B` uses that dart define to load Google Maps JavaScript when needed. Keep `web/index.html` free of a live Maps script so the app has one source of truth for loading Maps. Do not paste a real key into source control.
+
+Google Cloud website referrers must include:
+
+```text
+http://localhost/*
+https://jasonmatar977-hub.github.io/*
+https://jasonmatar977-hub.github.io/option_b/*
 ```
 
 If you run without that dart define, Option B uses the fake map fallback:
@@ -74,6 +72,6 @@ Google Maps is opt-in through:
 
 Without that flag, the app always uses the fake map. If location permission is denied or GPS is unavailable, the app keeps the default demo pickup location and the customer flow still works.
 
-Destination autocomplete uses Google Places when `OPTION_B_GOOGLE_MAPS_API_KEY` is provided. If the key is missing or Places fails, Option B shows local Lebanese fallback suggestions such as Zalka, Zahle, Beirut, Jounieh, Hamra, and Zouk Mikael. Directions uses Google Directions when possible; otherwise the app shows an approximate local distance/time estimate.
+Destination autocomplete avoids direct Google REST calls from Flutter web because those endpoints are blocked by browser CORS. Option B shows local Lebanese suggestions such as Zalka, Zahle, Beirut, Jounieh, Hamra, and Zouk Mikael. ETA/distance also avoids direct Directions REST calls and uses a local Haversine estimate with service-specific average speeds. Estimates are labeled approximate.
 
 Do not commit real API keys.

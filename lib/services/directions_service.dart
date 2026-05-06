@@ -1,7 +1,4 @@
-import 'dart:convert';
 import 'dart:math' as math;
-
-import 'package:http/http.dart' as http;
 
 import '../widgets/app_map.dart';
 import 'google_places_service.dart';
@@ -32,65 +29,22 @@ class DirectionsService {
   Future<RouteEstimate> route({
     required DemoMapPoint pickup,
     required DemoMapPoint destination,
+    double averageSpeedKmh = 28,
   }) async {
-    if (!isConfigured) {
-      throw const DirectionsException('Google Directions key missing.');
-    }
-
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
-      'origin': '${pickup.latitude},${pickup.longitude}',
-      'destination': '${destination.latitude},${destination.longitude}',
-      'key': apiKey,
-    });
-
-    final response = await http.get(uri).timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) {
-      throw const DirectionsException('Directions unavailable.');
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    if (body['status'] != 'OK') {
-      throw DirectionsException(
-        body['error_message'] as String? ?? 'Directions unavailable.',
-      );
-    }
-
-    final routes = body['routes'] as List<dynamic>? ?? const [];
-    if (routes.isEmpty) {
-      throw const DirectionsException('No route found.');
-    }
-
-    final route = routes.first as Map<String, dynamic>;
-    final legs = route['legs'] as List<dynamic>? ?? const [];
-    if (legs.isEmpty) {
-      throw const DirectionsException('No route leg found.');
-    }
-
-    final leg = legs.first as Map<String, dynamic>;
-    final distance = leg['distance'] as Map<String, dynamic>;
-    final duration = leg['duration'] as Map<String, dynamic>;
-    final encoded =
-        (route['overview_polyline'] as Map<String, dynamic>?)?['points']
-            as String?;
-
-    return RouteEstimate(
-      distanceText: distance['text'] as String? ?? 'Estimate unavailable',
-      durationText: duration['text'] as String? ?? 'Estimate unavailable',
-      distanceKm: ((distance['value'] as num? ?? 0).toDouble() / 1000)
-          .clamp(0.1, 999)
-          .toDouble(),
-      routePoints: encoded == null
-          ? [pickup, destination]
-          : _decodePolyline(encoded),
+    return fallback(
+      pickup: pickup,
+      destination: destination,
+      averageSpeedKmh: averageSpeedKmh,
     );
   }
 
   RouteEstimate fallback({
     required DemoMapPoint pickup,
     required DemoMapPoint destination,
+    double averageSpeedKmh = 28,
   }) {
     final km = _haversineKm(pickup, destination).clamp(1.0, 45.0).toDouble();
-    final minutes = (km * 3.2 + 5).round();
+    final minutes = ((km / averageSpeedKmh) * 60 + 5).round();
     return RouteEstimate(
       distanceText: '${km.toStringAsFixed(1)} km',
       durationText: '$minutes mins',
@@ -98,37 +52,6 @@ class DirectionsService {
       routePoints: [pickup, destination],
       isFallback: true,
     );
-  }
-
-  static List<DemoMapPoint> _decodePolyline(String encoded) {
-    final points = <DemoMapPoint>[];
-    var index = 0;
-    var lat = 0;
-    var lng = 0;
-
-    while (index < encoded.length) {
-      var shift = 0;
-      var result = 0;
-      int byte;
-      do {
-        byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20);
-      lat += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
-
-      shift = 0;
-      result = 0;
-      do {
-        byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20);
-      lng += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
-
-      points.add(DemoMapPoint(lat / 1E5, lng / 1E5));
-    }
-    return points;
   }
 
   static double _haversineKm(DemoMapPoint a, DemoMapPoint b) {

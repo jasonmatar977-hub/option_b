@@ -1,8 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
 import '../widgets/app_map.dart';
 
 const String kGoogleMapsApiKey = String.fromEnvironment(
@@ -44,8 +39,6 @@ class GooglePlacesService {
 
   final String apiKey;
 
-  bool get isConfigured => apiKey.trim().isNotEmpty;
-
   List<PlaceSuggestion> localSuggestions(String input) {
     final query = input.trim().toLowerCase();
     if (query.length < 2) {
@@ -55,92 +48,6 @@ class GooglePlacesService {
         .where((place) => place.mainText.toLowerCase().startsWith(query))
         .take(6)
         .toList();
-  }
-
-  Future<List<PlaceSuggestion>> autocomplete(String input) async {
-    final trimmed = input.trim();
-    if (!isConfigured || trimmed.length < 2) {
-      return const [];
-    }
-
-    final uri = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/autocomplete/json',
-      {'input': trimmed, 'key': apiKey},
-    );
-
-    final response = await http.get(uri).timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) {
-      throw const PlacesException('Autocomplete unavailable.');
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final status = body['status'] as String? ?? 'UNKNOWN';
-    if (status != 'OK' && status != 'ZERO_RESULTS') {
-      throw PlacesException(
-        body['error_message'] as String? ?? 'Autocomplete unavailable.',
-      );
-    }
-
-    final predictions = body['predictions'] as List<dynamic>? ?? const [];
-    return predictions
-        .map((raw) {
-          final item = raw as Map<String, dynamic>;
-          final formatting =
-              item['structured_formatting'] as Map<String, dynamic>? ??
-              const {};
-          return PlaceSuggestion(
-            placeId: item['place_id'] as String? ?? '',
-            mainText:
-                formatting['main_text'] as String? ??
-                item['description'] as String? ??
-                'Place',
-            secondaryText: formatting['secondary_text'] as String? ?? '',
-            description: item['description'] as String? ?? '',
-          );
-        })
-        .where((item) => item.placeId.isNotEmpty)
-        .toList();
-  }
-
-  Future<PlaceDetails> details(String placeId) async {
-    if (!isConfigured) {
-      throw const PlacesException('Google Places key missing.');
-    }
-
-    final uri = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/details/json',
-      {
-        'place_id': placeId,
-        'fields': 'name,formatted_address,geometry',
-        'key': apiKey,
-      },
-    );
-
-    final response = await http.get(uri).timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) {
-      throw const PlacesException('Place details unavailable.');
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    if (body['status'] != 'OK') {
-      throw PlacesException(
-        body['error_message'] as String? ?? 'Place details unavailable.',
-      );
-    }
-
-    final result = body['result'] as Map<String, dynamic>;
-    final geometry = result['geometry'] as Map<String, dynamic>;
-    final location = geometry['location'] as Map<String, dynamic>;
-    return PlaceDetails(
-      name: result['name'] as String? ?? 'Selected destination',
-      address: result['formatted_address'] as String? ?? '',
-      point: DemoMapPoint(
-        (location['lat'] as num).toDouble(),
-        (location['lng'] as num).toDouble(),
-      ),
-    );
   }
 }
 
