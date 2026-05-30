@@ -1,0 +1,35 @@
+{
+    "name": "On My Way",
+    "short_name": "OMW",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#050505",
+    "theme_color": "#FFD21F",
+    "description": "On My Way Delivery for ride, moto, and courier requests.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
