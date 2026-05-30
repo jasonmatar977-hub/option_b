@@ -22,6 +22,7 @@ import 'services/job_service.dart';
 import 'services/location_service.dart';
 import 'services/location_sync_service.dart';
 import 'services/marketplace_service.dart';
+import 'services/notification_permission_service.dart';
 import 'services/notification_service.dart';
 import 'services/request_service.dart';
 import 'services/storage_service.dart';

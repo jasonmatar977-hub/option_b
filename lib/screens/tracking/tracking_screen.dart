@@ -81,7 +81,10 @@ class _OfferMatchingScreenState extends State<OfferMatchingScreen> {
     final drivers = onlineDriversFor(widget.offer.service);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Finding OMW drivers')),
+      appBar: AppBar(
+        leading: const OmwBackButton(),
+        title: const Text('Finding OMW drivers'),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -253,7 +256,10 @@ class _OfferMatchingScreenState extends State<OfferMatchingScreen> {
           backend.JobStatus.cancelled => 'This OMW offer was cancelled',
         };
         return Scaffold(
-          appBar: AppBar(title: const Text('Finding OMW drivers')),
+          appBar: AppBar(
+            leading: const OmwBackButton(),
+            title: const Text('Finding OMW drivers'),
+          ),
           body: SafeArea(
             child: ListView(
               padding: const EdgeInsets.all(20),
@@ -533,7 +539,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final status = kTrackingSteps[_stepIndex];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('On My Way Tracking')),
+      appBar: AppBar(
+        leading: const OmwBackButton(),
+        title: const Text('On My Way Tracking'),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -825,6 +834,7 @@ class HistoryScreen extends StatelessWidget {
     final user = AuthService().currentUser;
     return Scaffold(
       appBar: AppBar(
+        leading: const OmwBackButton(),
         title: const Text('History'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,

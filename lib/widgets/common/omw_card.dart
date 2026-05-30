@@ -290,6 +290,354 @@ class OmwNotificationsCard extends StatelessWidget {
   }
 }
 
+class OmwNotificationBell extends StatelessWidget {
+  const OmwNotificationBell({
+    super.key,
+    required this.roleTarget,
+    this.userId,
+    this.limit = 20,
+  });
+
+  final String roleTarget;
+  final String? userId;
+  final int limit;
+
+  @override
+  Widget build(BuildContext context) {
+    final service = NotificationService();
+    return StreamBuilder<List<AppNotification>>(
+      stream: service.watchDashboardNotifications(
+        userId: userId,
+        roleTarget: roleTarget,
+        limit: limit,
+      ),
+      builder: (context, snapshot) {
+        final notifications = snapshot.data ?? const <AppNotification>[];
+        final unreadCount = notifications
+            .where((notification) => !notification.isRead)
+            .length;
+        return Padding(
+          padding: const EdgeInsets.only(right: 2),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                tooltip: 'Notifications',
+                onPressed: () => _showNotificationsSheet(
+                  context,
+                  userId: userId,
+                  roleTarget: roleTarget,
+                  limit: limit,
+                ),
+                icon: Icon(
+                  unreadCount > 0
+                      ? Icons.notifications_active
+                      : Icons.notifications_none,
+                ),
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 17,
+                      minHeight: 17,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: kAccentYellow,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: kBrandBlack, width: 1.2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unreadCount > 9 ? '9+' : '$unreadCount',
+                      style: const TextStyle(
+                        color: kBrandBlack,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+Future<void> _showNotificationsSheet(
+  BuildContext context, {
+  required String roleTarget,
+  String? userId,
+  int limit = 20,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    builder: (context) => _NotificationsSheet(
+      roleTarget: roleTarget,
+      userId: userId,
+      limit: limit,
+    ),
+  );
+}
+
+class _NotificationsSheet extends StatelessWidget {
+  const _NotificationsSheet({
+    required this.roleTarget,
+    required this.userId,
+    required this.limit,
+  });
+
+  final String roleTarget;
+  final String? userId;
+  final int limit;
+
+  @override
+  Widget build(BuildContext context) {
+    final service = NotificationService();
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: StreamBuilder<List<AppNotification>>(
+          stream: service.watchDashboardNotifications(
+            userId: userId,
+            roleTarget: roleTarget,
+            limit: limit,
+          ),
+          builder: (context, snapshot) {
+            final notifications = snapshot.data ?? const <AppNotification>[];
+            final unreadCount = notifications
+                .where((notification) => !notification.isRead)
+                .length;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 12, 10),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      if (unreadCount > 0)
+                        TextButton(
+                          onPressed: () => service.markAllAsRead(
+                            userId: userId,
+                            roleTarget: roleTarget,
+                          ),
+                          child: const Text('Mark read'),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child:
+                      snapshot.connectionState == ConnectionState.waiting &&
+                          notifications.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : notifications.isEmpty
+                      ? const _NotificationsEmptyState()
+                      : ListView.separated(
+                          padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottom),
+                          itemCount: notifications.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final notification = notifications[index];
+                            return _NotificationRow(
+                              notification: notification,
+                              onMarkRead: notification.isRead
+                                  ? null
+                                  : () => service.markAsRead(notification.id),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsEmptyState extends StatelessWidget {
+  const _NotificationsEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: kAccentYellow.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.notifications_none, color: kBrandBlack),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No notifications yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Order, ride, and delivery updates will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class OmwNotificationPermissionPrompt extends StatefulWidget {
+  const OmwNotificationPermissionPrompt({super.key});
+
+  @override
+  State<OmwNotificationPermissionPrompt> createState() =>
+      _OmwNotificationPermissionPromptState();
+}
+
+class _OmwNotificationPermissionPromptState
+    extends State<OmwNotificationPermissionPrompt> {
+  final NotificationPermissionService _service =
+      const NotificationPermissionService();
+  bool _visible = false;
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final dismissed = await _service.wasPromptDismissed();
+    final status = await _service.status();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _checking = false;
+      _visible = !dismissed && status == OmwNotificationPermissionStatus.prompt;
+    });
+  }
+
+  Future<void> _allow() async {
+    await _service.requestPermission();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _visible = false);
+  }
+
+  Future<void> _later() async {
+    await _service.dismissPrompt();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _visible = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_checking || !_visible) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 22),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentYellow.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: kAccentYellow.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.notifications_active_outlined),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Allow notifications to get order, ride, and delivery updates.',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _later,
+                  child: const Text('Maybe later'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _allow,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kAccentYellow,
+                    foregroundColor: kBrandBlack,
+                  ),
+                  child: const Text('Allow'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NotificationRow extends StatelessWidget {
   const _NotificationRow({required this.notification, this.onMarkRead});
 

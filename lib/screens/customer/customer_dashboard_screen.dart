@@ -42,6 +42,7 @@ class CustomerHomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(kBrandName),
         actions: [
+          OmwNotificationBell(userId: userId, roleTarget: 'customer'),
           TextButton.icon(
             onPressed: () => switchAccountFrom(context, onSignOut),
             icon: const Icon(Icons.logout),
@@ -97,6 +98,7 @@ class CustomerHomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 22),
+            const OmwNotificationPermissionPrompt(),
             const Text(
               'What do you need today?',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
@@ -146,8 +148,6 @@ class CustomerHomeScreen extends StatelessWidget {
               userPhone: userPhone,
               onSwitchAccount: onSignOut,
             ),
-            const SizedBox(height: 22),
-            OmwNotificationsCard(userId: userId, roleTarget: 'customer'),
             const SizedBox(height: 22),
             Row(
               children: [
@@ -1366,6 +1366,20 @@ class _MainMapScreenState extends State<MainMapScreen> {
                     style: IconButton.styleFrom(
                       backgroundColor: kBrandBlack,
                       foregroundColor: kAccentYellow,
+                    ),
+                    onPressed: () => navigateBackOrHome(
+                      context,
+                      fallback: () =>
+                          switchAccountFrom(context, widget.onSignOut),
+                    ),
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: kBrandBlack,
                     ),
                     onPressed: _openMenu,
                     icon: const Icon(Icons.menu),

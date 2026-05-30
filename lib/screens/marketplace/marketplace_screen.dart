@@ -126,6 +126,11 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             .toList();
         return Scaffold(
           appBar: AppBar(
+            leading: OmwBackButton(
+              fallback: widget.onSwitchAccount == null
+                  ? null
+                  : () => switchAccountFrom(context, widget.onSwitchAccount!),
+            ),
             title: const Text('OMW Marketplace'),
             actions: [
               _CartIconButton(
@@ -264,6 +269,11 @@ class MarketplaceStoreScreen extends StatelessWidget {
     final cartCount = cart.fold(0, (sum, item) => sum + item.quantity);
     return Scaffold(
       appBar: AppBar(
+        leading: OmwBackButton(
+          fallback: onSwitchAccount == null
+              ? null
+              : () => switchAccountFrom(context, onSwitchAccount!),
+        ),
         title: Text(store.name),
         actions: [
           _CartIconButton(
@@ -528,6 +538,11 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: OmwBackButton(
+          fallback: widget.onSwitchAccount == null
+              ? null
+              : () => switchAccountFrom(context, widget.onSwitchAccount!),
+        ),
         title: const Text('OMW Cart'),
         actions: [
           if (widget.onSwitchAccount != null)
@@ -635,6 +650,11 @@ class MarketplaceTrackingScreen extends StatelessWidget {
     ];
     return Scaffold(
       appBar: AppBar(
+        leading: OmwBackButton(
+          fallback: onSwitchAccount == null
+              ? null
+              : () => switchAccountFrom(context, onSwitchAccount!),
+        ),
         title: const Text('Marketplace tracking'),
         actions: [
           if (onSwitchAccount != null)

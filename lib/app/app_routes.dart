@@ -208,6 +208,31 @@ void switchAccountFrom(BuildContext context, VoidCallback onSignOut) {
   onSignOut();
 }
 
+void navigateBackOrHome(BuildContext context, {VoidCallback? fallback}) {
+  final navigator = Navigator.of(context);
+  if (navigator.canPop()) {
+    navigator.pop();
+    return;
+  }
+  fallback?.call();
+}
+
+class OmwBackButton extends StatelessWidget {
+  const OmwBackButton({super.key, this.fallback, this.tooltip = 'Back'});
+
+  final VoidCallback? fallback;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => navigateBackOrHome(context, fallback: fallback),
+    );
+  }
+}
+
 String applicationStatusLabel(WorkerApplicationStatus status) {
   switch (status) {
     case WorkerApplicationStatus.notStarted:

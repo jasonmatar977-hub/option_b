@@ -437,6 +437,9 @@ class _WorkerOnboardingScreenState extends State<WorkerOnboardingScreen> {
     final profile = demoWorkerProfile;
     return Scaffold(
       appBar: AppBar(
+        leading: OmwBackButton(
+          fallback: () => switchAccountFrom(context, widget.onSignOut),
+        ),
         title: const Text('OMW Worker approval'),
         actions: [
           TextButton.icon(
@@ -3070,7 +3073,10 @@ class DriverJobsHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('OMW Driver Earnings')),
+      appBar: AppBar(
+        leading: const OmwBackButton(),
+        title: const Text('OMW Driver Earnings'),
+      ),
       body: SafeArea(
         child: demoDriverJobs.isEmpty
             ? const Center(child: Text('No OMW driver jobs yet.'))
