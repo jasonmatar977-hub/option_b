@@ -3,12 +3,12 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:label="option_b"
+        android:label="On My Way"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Google Maps placeholder. Replace YOUR_GOOGLE_MAPS_API_KEY with a real
              Android Maps SDK key before running with:
-             --dart-define=OPTION_B_USE_GOOGLE_MAPS=true
+             --dart-define=OMW_USE_GOOGLE_MAPS=true
              The Flutter app defaults to the fake map fallback when that define is omitted. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

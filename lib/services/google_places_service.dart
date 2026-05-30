@@ -1,8 +1,7 @@
+import '../config/app_config.dart';
 import '../widgets/app_map.dart';
 
-const String kGoogleMapsApiKey = String.fromEnvironment(
-  'OPTION_B_GOOGLE_MAPS_API_KEY',
-);
+const String kGoogleMapsApiKey = AppConfig.googleMapsApiKey;
 
 class PlaceSuggestion {
   const PlaceSuggestion({

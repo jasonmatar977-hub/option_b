@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../config/app_config.dart';
 import 'option_b_gmaps_js_ready.dart';
 
 const Color _mapBgTop = Color(0xFFE8F1F7);
@@ -12,10 +13,7 @@ const Color _mapBgBottom = Color(0xFFD8E7F0);
 const Color _accentBlue = Color(0xFF1565C0);
 const Color _accentYellow = Color(0xFFFFD000);
 
-const bool kUseGoogleMaps = bool.fromEnvironment(
-  'OPTION_B_USE_GOOGLE_MAPS',
-  defaultValue: false,
-);
+const bool kUseGoogleMaps = AppConfig.useGoogleMaps;
 
 class DemoMapPoint {
   const DemoMapPoint(this.latitude, this.longitude);

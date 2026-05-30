@@ -2,7 +2,13 @@ import 'package:geolocator/geolocator.dart';
 
 import '../widgets/app_map.dart';
 
-enum DemoLocationStatus { allowed, permissionDenied, servicesDisabled, failed }
+enum DemoLocationStatus {
+  allowed,
+  permissionDenied,
+  permissionDeniedForever,
+  servicesDisabled,
+  failed,
+}
 
 class DemoLocationResult {
   const DemoLocationResult({required this.status, this.point, this.message});
@@ -28,11 +34,18 @@ class LocationService {
         permission = await Geolocator.requestPermission();
       }
 
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
+        return const DemoLocationResult(
+          status: DemoLocationStatus.permissionDeniedForever,
+          message:
+              'Location permission is blocked. Please enable it from browser/app settings.',
+        );
+      }
+
+      if (permission == LocationPermission.denied) {
         return const DemoLocationResult(
           status: DemoLocationStatus.permissionDenied,
-          message: 'Location permission denied. You can continue manually.',
+          message: 'Location permission denied. Enable it to go online.',
         );
       }
 
@@ -53,5 +66,14 @@ class LocationService {
         message: 'Could not get GPS. You can continue with the demo location.',
       );
     }
+  }
+
+  static Stream<Position> positionStream() {
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 25,
+      ),
+    );
   }
 }

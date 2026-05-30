@@ -3,9 +3,9 @@ import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
-const String _googleMapsApiKey = String.fromEnvironment(
-  'OPTION_B_GOOGLE_MAPS_API_KEY',
-);
+import '../config/app_config.dart';
+
+const String _googleMapsApiKey = AppConfig.googleMapsApiKey;
 
 bool _scriptLoadStarted = false;
 String _statusReason = 'JS not ready';

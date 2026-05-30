@@ -30,9 +30,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cloud_firestore: ^6.4.1
+  firebase_auth: ^6.5.1
+  firebase_core: ^4.9.0
+  firebase_storage: ^13.4.1
+  file_picker: ^10.3.3
   geolocator: ^14.0.2
   google_maps_flutter: ^2.13.1
+  image_picker: ^1.2.1
+  url_launcher: ^6.3.2
   web: ^1.1.1
+  cloud_functions: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +63,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/branding/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
