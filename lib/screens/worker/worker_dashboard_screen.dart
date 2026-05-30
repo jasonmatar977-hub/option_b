@@ -2445,8 +2445,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: OmwBackButton(
+          fallback: () => switchAccountFrom(context, widget.onSignOut),
+        ),
         title: const Text('OMW Driver'),
         actions: [
+          OmwNotificationBell(userId: userId, roleTarget: 'worker'),
           TextButton.icon(
             onPressed: () => switchAccountFrom(context, widget.onSignOut),
             icon: const Icon(Icons.logout),
@@ -2512,8 +2516,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
             const SizedBox(height: 16),
             _buildOnlineControl(online),
-            const SizedBox(height: 16),
-            OmwNotificationsCard(userId: userId, roleTarget: 'worker'),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),

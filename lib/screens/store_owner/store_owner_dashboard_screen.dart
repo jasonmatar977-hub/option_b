@@ -68,6 +68,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
           appBar: AppBar(
             title: const Text('Store Owner Dashboard'),
             actions: [
+              OmwNotificationBell(userId: _ownerId, roleTarget: 'store_owner'),
               IconButton(
                 onPressed: widget.onSignOut,
                 icon: const Icon(Icons.logout),
@@ -87,11 +88,6 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
                   onToggleOpen: store == null
                       ? null
                       : (value) => _service.setStoreOpen(store.id, value),
-                ),
-                const SizedBox(height: 16),
-                OmwNotificationsCard(
-                  userId: _ownerId,
-                  roleTarget: 'store_owner',
                 ),
                 const SizedBox(height: 16),
                 if (store == null)
@@ -365,12 +361,19 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          const Divider(color: Colors.white24, height: 1),
+          const SizedBox(height: 14),
           const Text(
             'Store settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           TextField(
             controller: _nameCtrl,
             cursorColor: kDeepGold,
@@ -380,7 +383,7 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               icon: Icons.storefront_outlined,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _descriptionCtrl,
             cursorColor: kDeepGold,
@@ -392,18 +395,20 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               icon: Icons.notes_outlined,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _phoneCtrl,
             cursorColor: kDeepGold,
             style: _storeOwnerInputTextStyle,
             keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
             decoration: _storeOwnerInputDecoration(
               label: 'Phone number',
+              hint: 'e.g. +961 70 000 000',
               icon: Icons.phone_outlined,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _addressCtrl,
             cursorColor: kDeepGold,
@@ -413,37 +418,40 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               icon: Icons.location_on_outlined,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           TextField(
             controller: _hoursCtrl,
             cursorColor: kDeepGold,
             style: _storeOwnerInputTextStyle,
             decoration: _storeOwnerInputDecoration(
               label: 'Opening hours',
-              hint: 'Example: Mon-Sat 9:00-20:00',
+              hint: 'e.g. Mon–Sat 9:00–20:00',
               icon: Icons.schedule_outlined,
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          const SizedBox(height: 14),
+          Row(
             children: [
-              _StoreToggleChip(
-                label: 'Delivery available',
-                value: _delivery,
-                onChanged: (value) => setState(() => _delivery = value),
+              Expanded(
+                child: _StoreToggleChip(
+                  label: 'Delivery',
+                  value: _delivery,
+                  onChanged: (value) => setState(() => _delivery = value),
+                ),
               ),
-              _StoreToggleChip(
-                label: 'Pickup available',
-                value: _pickup,
-                onChanged: (value) => setState(() => _pickup = value),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StoreToggleChip(
+                  label: 'Pickup',
+                  value: _pickup,
+                  onChanged: (value) => setState(() => _pickup = value),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerRight,
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
             child: FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.save_outlined),
@@ -451,9 +459,10 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               style: FilledButton.styleFrom(
                 backgroundColor: kAccentYellow,
                 foregroundColor: kBrandBlack,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
                 ),
               ),
             ),

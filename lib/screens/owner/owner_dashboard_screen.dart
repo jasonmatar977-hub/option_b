@@ -109,6 +109,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       appBar: AppBar(
         title: const Text('OMW Control Center'),
         actions: [
+          OmwNotificationBell(
+            userId: AuthService().currentUser?.uid,
+            roleTarget: 'owner',
+          ),
           TextButton.icon(
             onPressed: () => switchAccountFrom(context, widget.onSignOut),
             icon: const Icon(Icons.logout),
@@ -139,11 +143,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(height: 18),
             _OwnerMetricsGrid(metrics: metrics),
-            const SizedBox(height: 18),
-            OmwNotificationsCard(
-              userId: AuthService().currentUser?.uid,
-              roleTarget: 'owner',
-            ),
             const SizedBox(height: 18),
             _OwnerChartPanel(metrics: metrics),
             const SizedBox(height: 18),
@@ -293,6 +292,10 @@ class _OwnerFirebaseDashboard extends StatelessWidget {
           appBar: AppBar(
             title: const Text('OMW Control Center'),
             actions: [
+              OmwNotificationBell(
+                userId: AuthService().currentUser?.uid,
+                roleTarget: 'owner',
+              ),
               TextButton.icon(
                 onPressed: () => switchAccountFrom(context, onSignOut),
                 icon: const Icon(Icons.logout),
@@ -335,11 +338,6 @@ class _OwnerFirebaseDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 _OwnerMetricsGrid(metrics: metrics),
-                const SizedBox(height: 18),
-                OmwNotificationsCard(
-                  userId: AuthService().currentUser?.uid,
-                  roleTarget: 'owner',
-                ),
                 const SizedBox(height: 18),
                 _OwnerChartPanel(metrics: metrics),
                 const SizedBox(height: 18),

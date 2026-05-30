@@ -105,7 +105,7 @@ class _AppMapState extends State<AppMap> {
       _webGmapsReady = true;
       _webGmapsReason = kUseGoogleMaps
           ? 'native map platform'
-          : 'Google Maps disabled';
+          : 'Map not configured';
     }
   }
 
@@ -136,7 +136,7 @@ class _AppMapState extends State<AppMap> {
             icon: Icons.map_outlined,
           )
         : _fallbackMap(
-            label: _isLoadingGoogleMap ? 'Loading map' : 'Demo map fallback',
+            label: _isLoadingGoogleMap ? 'Loading map…' : 'Map preview',
             reason: _fallbackReason,
           );
     if (widget.height == null) {
@@ -277,10 +277,10 @@ class _AppMapState extends State<AppMap> {
 
   String get _fallbackReason {
     if (!kUseGoogleMaps) {
-      return 'Google Maps disabled';
+      return 'Map not configured';
     }
     if (_isLoadingGoogleMap) {
-      return 'JS loading';
+      return 'Loading…';
     }
     return _webGmapsReason;
   }
