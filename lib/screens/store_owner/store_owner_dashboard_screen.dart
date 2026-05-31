@@ -122,6 +122,97 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
   }
 }
 
+class _StoreImageUploadCell extends StatelessWidget {
+  const _StoreImageUploadCell({
+    required this.label,
+    required this.imageUrl,
+    required this.uploading,
+    required this.placeholder,
+    required this.onUpload,
+  });
+
+  final String label;
+  final String imageUrl;
+  final bool uploading;
+  final IconData placeholder;
+  final VoidCallback onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: kMutedText,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _placeholder,
+                      )
+                    : _placeholder,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: uploading ? null : onUpload,
+                  icon: uploading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: kAccentYellow,
+                          ),
+                        )
+                      : const Icon(Icons.upload_outlined, size: 16),
+                  label: Text(
+                    imageUrl.isNotEmpty ? 'Replace' : 'Upload',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kAccentYellow,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget get _placeholder => Container(
+    width: 48,
+    height: 48,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.white24),
+    ),
+    child: Icon(placeholder, color: Colors.white38, size: 22),
+  );
+}
+
 class _StoreCrmBody extends StatelessWidget {
   const _StoreCrmBody({required this.store, required this.service});
 
@@ -211,6 +302,10 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
   late final TextEditingController _hoursCtrl;
   bool _delivery = true;
   bool _pickup = true;
+  String _logoUrl = '';
+  String _coverUrl = '';
+  bool _uploadingLogo = false;
+  bool _uploadingCover = false;
 
   @override
   void initState() {
@@ -225,6 +320,8 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
     _hoursCtrl = TextEditingController(text: store?.openingHours ?? '');
     _delivery = store?.deliveryAvailable ?? true;
     _pickup = store?.pickupAvailable ?? true;
+    _logoUrl = store?.imageUrl ?? '';
+    _coverUrl = store?.coverUrl ?? '';
   }
 
   @override
@@ -241,6 +338,8 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
     _hoursCtrl.text = store?.openingHours ?? '';
     _delivery = store?.deliveryAvailable ?? true;
     _pickup = store?.pickupAvailable ?? true;
+    _logoUrl = store?.imageUrl ?? '';
+    _coverUrl = store?.coverUrl ?? '';
   }
 
   @override
@@ -251,6 +350,110 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
     _addressCtrl.dispose();
     _hoursCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickStoreImage({required bool isLogo}) async {
+    final storeId = widget.store?.id ?? '';
+    if (storeId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Save your store profile first before uploading images.',
+          ),
+        ),
+      );
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    if (!FirebaseService.instance.isReady) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image upload requires Firebase Storage.'),
+          ),
+        );
+      }
+      return;
+    }
+    final ext = (file.extension ?? 'jpg').toLowerCase();
+    final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+    setState(() {
+      if (isLogo) {
+        _uploadingLogo = true;
+      } else {
+        _uploadingCover = true;
+      }
+    });
+    try {
+      final url = isLogo
+          ? await StorageService().uploadStoreLogo(
+              storeId: storeId,
+              bytes: bytes,
+              fileName: file.name,
+              contentType: mime,
+              extension: ext,
+            )
+          : await StorageService().uploadStoreCover(
+              storeId: storeId,
+              bytes: bytes,
+              fileName: file.name,
+              contentType: mime,
+              extension: ext,
+            );
+      if (!mounted) return;
+      setState(() {
+        if (url != null) {
+          if (isLogo) {
+            _logoUrl = url;
+          } else {
+            _coverUrl = url;
+          }
+        }
+        if (isLogo) {
+          _uploadingLogo = false;
+        } else {
+          _uploadingCover = false;
+        }
+      });
+      if (url != null) _save();
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (isLogo) {
+          _uploadingLogo = false;
+        } else {
+          _uploadingCover = false;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'permission-denied'
+                ? 'Storage permission denied. Check Firebase Storage rules.'
+                : 'Upload failed. Please try again.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (isLogo) {
+          _uploadingLogo = false;
+        } else {
+          _uploadingCover = false;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image upload failed. Please try again.')),
+      );
+    }
   }
 
   void _save() {
@@ -266,8 +469,8 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
         description: _descriptionCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
         category: existing?.category ?? 'General',
-        imageUrl: existing?.imageUrl ?? '',
-        coverUrl: existing?.coverUrl ?? '',
+        imageUrl: _logoUrl.isNotEmpty ? _logoUrl : (existing?.imageUrl ?? ''),
+        coverUrl: _coverUrl.isNotEmpty ? _coverUrl : (existing?.coverUrl ?? ''),
         status: existing?.status ?? 'active',
         rating: existing?.rating ?? 0,
         isOpen: existing?.isOpen ?? true,
@@ -446,6 +649,26 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
                   value: _pickup,
                   onChanged: (value) => setState(() => _pickup = value),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _StoreImageUploadCell(
+                label: 'Logo',
+                imageUrl: _logoUrl,
+                uploading: _uploadingLogo,
+                placeholder: Icons.storefront_outlined,
+                onUpload: () => _pickStoreImage(isLogo: true),
+              ),
+              const SizedBox(width: 12),
+              _StoreImageUploadCell(
+                label: 'Cover',
+                imageUrl: _coverUrl,
+                uploading: _uploadingCover,
+                placeholder: Icons.photo_outlined,
+                onUpload: () => _pickStoreImage(isLogo: false),
               ),
             ],
           ),
@@ -803,6 +1026,8 @@ class _StoreInventoryCard extends StatelessWidget {
     final thresholdCtrl = TextEditingController(
       text: product?.lowStockThreshold.toString() ?? '2',
     );
+    var productImageUrl = product?.imageUrl ?? '';
+    var uploadingImage = false;
     var available = product?.isAvailable ?? true;
     var visible = product?.isVisibleToCustomers ?? true;
     var selectedCategory = product?.category.isNotEmpty == true
@@ -939,6 +1164,92 @@ class _StoreInventoryCard extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (productImageUrl.isNotEmpty) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      productImageUrl,
+                      height: 110,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: uploadingImage
+                        ? null
+                        : () async {
+                            final result = await FilePicker.platform.pickFiles(
+                              type: FileType.image,
+                              withData: true,
+                            );
+                            if (result == null || result.files.isEmpty) return;
+                            final file = result.files.single;
+                            final bytes = file.bytes;
+                            if (bytes == null || bytes.isEmpty) return;
+                            if (!FirebaseService.instance.isReady) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Image upload requires Firebase Storage.',
+                                    ),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+                            final ext = (file.extension ?? 'jpg').toLowerCase();
+                            final mime = ext == 'png'
+                                ? 'image/png'
+                                : 'image/jpeg';
+                            setDialogState(() => uploadingImage = true);
+                            try {
+                              final url = await StorageService()
+                                  .uploadProductImage(
+                                    storeId: store.id,
+                                    productId: product?.id ?? '',
+                                    bytes: bytes,
+                                    fileName: file.name,
+                                    contentType: mime,
+                                    extension: ext,
+                                  );
+                              setDialogState(() {
+                                if (url != null) productImageUrl = url;
+                                uploadingImage = false;
+                              });
+                            } catch (_) {
+                              setDialogState(() => uploadingImage = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Image upload failed. Please try again.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: uploadingImage
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.image_outlined),
+                    label: Text(
+                      productImageUrl.isNotEmpty
+                          ? 'Replace image'
+                          : 'Upload product image',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -987,7 +1298,7 @@ class _StoreInventoryCard extends StatelessWidget {
                   : categoryCtrl.text.trim()),
           price: price,
           cost: double.tryParse(costCtrl.text.trim()),
-          imageUrl: product?.imageUrl ?? '',
+          imageUrl: productImageUrl,
           stockQuantity: stock,
           lowStockThreshold: lowStockThreshold,
           isAvailable: stock <= 0 ? false : available,
@@ -1191,11 +1502,17 @@ class _ProductInventoryTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: kAccentYellow.withValues(alpha: 0.25),
-                  child: const Icon(
-                    Icons.shopping_bag_outlined,
-                    color: kDeepGold,
+                OmwNetworkImage(
+                  url: product.imageUrl,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  placeholder: CircleAvatar(
+                    backgroundColor: kAccentYellow.withValues(alpha: 0.25),
+                    child: const Icon(
+                      Icons.shopping_bag_outlined,
+                      color: kDeepGold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),

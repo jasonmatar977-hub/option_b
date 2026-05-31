@@ -822,7 +822,14 @@ class _MarketplaceStoreCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _MarketplaceImagePlaceholder(icon: Icons.storefront_outlined),
+          OmwNetworkImage(
+            url: store.imageUrl,
+            width: 58,
+            height: 58,
+            placeholder: _MarketplaceImagePlaceholder(
+              icon: Icons.storefront_outlined,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -912,7 +919,14 @@ class _StoreHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _MarketplaceImagePlaceholder(icon: Icons.storefront_outlined),
+          OmwNetworkImage(
+            url: store.imageUrl,
+            width: 58,
+            height: 58,
+            placeholder: const _MarketplaceImagePlaceholder(
+              icon: Icons.storefront_outlined,
+            ),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -979,9 +993,29 @@ class _ProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Expanded(
-            child: _MarketplaceImagePlaceholder(
-              icon: Icons.shopping_bag_outlined,
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    color: kAccentYellow.withValues(alpha: 0.22),
+                    child: const Center(
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: kDeepGold,
+                      ),
+                    ),
+                  ),
+                  if (product.imageUrl.isNotEmpty)
+                    Image.network(
+                      product.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 8),

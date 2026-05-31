@@ -79,6 +79,70 @@ class StorageService {
     return document;
   }
 
+  /// Upload a product image and return the download URL.
+  /// Storage path: stores/{storeId}/products/{productId|timestamp}/{ts}_{fileName}
+  Future<String?> uploadProductImage({
+    required String storeId,
+    required String productId,
+    required Uint8List bytes,
+    required String fileName,
+    String contentType = 'image/jpeg',
+    String extension = 'jpg',
+  }) async {
+    if (!_firebaseService.isReady) return null;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final folder = productId.trim().isEmpty ? '$ts' : productId.trim();
+    final safeFile = _safeName(fileName, extension);
+    final path = 'stores/$storeId/products/$folder/${ts}_$safeFile';
+    final ref = _firebaseService.storage.ref(path);
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    return ref.getDownloadURL();
+  }
+
+  /// Upload a store logo and return the download URL.
+  /// Storage path: stores/{storeId}/logo/{ts}_{fileName}
+  Future<String?> uploadStoreLogo({
+    required String storeId,
+    required Uint8List bytes,
+    required String fileName,
+    String contentType = 'image/jpeg',
+    String extension = 'jpg',
+  }) async {
+    if (!_firebaseService.isReady) return null;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final safeFile = _safeName(fileName, extension);
+    final path = 'stores/$storeId/logo/${ts}_$safeFile';
+    final ref = _firebaseService.storage.ref(path);
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    return ref.getDownloadURL();
+  }
+
+  /// Upload a store cover image and return the download URL.
+  /// Storage path: stores/{storeId}/cover/{ts}_{fileName}
+  Future<String?> uploadStoreCover({
+    required String storeId,
+    required Uint8List bytes,
+    required String fileName,
+    String contentType = 'image/jpeg',
+    String extension = 'jpg',
+  }) async {
+    if (!_firebaseService.isReady) return null;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final safeFile = _safeName(fileName, extension);
+    final path = 'stores/$storeId/cover/${ts}_$safeFile';
+    final ref = _firebaseService.storage.ref(path);
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    return ref.getDownloadURL();
+  }
+
+  String _safeName(String fileName, String extension) {
+    final safe = fileName
+        .trim()
+        .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_')
+        .replaceAll(RegExp(r'\s+'), '_');
+    return safe.isEmpty ? 'file.$extension' : safe;
+  }
+
   Future<String?> getDownloadUrl(String storagePath) async {
     if (!_firebaseService.isReady) {
       return null;

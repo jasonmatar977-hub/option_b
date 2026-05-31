@@ -30,6 +30,7 @@ import 'services/store_crm_service.dart';
 import 'services/user_service.dart';
 import 'services/worker_service.dart';
 import 'widgets/app_map.dart';
+import 'widgets/common/omw_image.dart';
 
 part 'app/app_routes.dart';
 part 'app/role_router.dart';
