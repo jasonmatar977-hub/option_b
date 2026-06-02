@@ -17,6 +17,9 @@ class _OptionBAppState extends State<OptionBApp> {
   bool _isVerified = false;
   bool _showSplash = true;
   bool _restoringSession = false;
+  // True once the user taps "Get Started" on the welcome screen, or
+  // immediately when an existing session is restored (returning user).
+  bool _hasSeenWelcome = false;
   StreamSubscription<User?>? _authSubscription;
 
   @override
@@ -62,6 +65,7 @@ class _OptionBAppState extends State<OptionBApp> {
       _restoringSession = true;
       _phoneNumber ??= user.phoneNumber;
       _isVerified = true;
+      _hasSeenWelcome = true; // returning users skip the welcome screen
     });
     try {
       final savedUser = await _userService.getUser(user.uid);
@@ -142,6 +146,14 @@ class _OptionBAppState extends State<OptionBApp> {
     final roles = {...?existing?.roles, backendRoleFor(role)}.toList();
     final verifiedWithWhatsApp =
         _verificationSession?.channel == AuthOtpChannel.whatsApp;
+    final isEmailUser = user.providerData.any(
+      (p) => p.providerId == 'password',
+    );
+    final authProvider = isEmailUser
+        ? 'email_password'
+        : verifiedWithWhatsApp
+        ? 'whatsapp_otp_test'
+        : existing?.authProvider ?? 'firebase_phone';
     await _userService.createOrUpdateUser(
       backend.AppUser(
         uid: user.uid,
@@ -162,9 +174,7 @@ class _OptionBAppState extends State<OptionBApp> {
         whatsappVerifiedAt: verifiedWithWhatsApp
             ? now
             : existing?.whatsappVerifiedAt,
-        authProvider: verifiedWithWhatsApp
-            ? 'whatsapp_otp_test'
-            : existing?.authProvider ?? 'firebase_phone',
+        authProvider: authProvider,
       ),
     );
   }
@@ -189,55 +199,32 @@ class _OptionBAppState extends State<OptionBApp> {
 
   @override
   Widget build(BuildContext context) {
-    final role = _selectedRole;
-    final availableRoles = _availableRoles;
-    final phone = _phoneNumber;
     Widget home;
     if (_showSplash || _restoringSession) {
       home = const BrandedSplashScreen();
-    } else if (availableRoles != null &&
-        availableRoles.length > 1 &&
-        role == null) {
-      home = RoleSelectionScreen(
-        roles: availableRoles,
-        title: 'Continue as',
-        subtitle: 'Choose which On My Way role to use now.',
-        onRoleSelected: _selectRole,
+    } else if (!_hasSeenWelcome) {
+      // Fresh open with no active session → show welcome branding page.
+      home = OmwWelcomeScreen(
+        onGetStarted: () => setState(() => _hasSeenWelcome = true),
       );
-    } else if (role == null) {
-      home = RoleSelectionScreen(onRoleSelected: _selectRole);
-    } else if (phone == null) {
-      home = PhoneLoginScreen(role: role, onCodeSent: _sendCode);
-    } else if (!_isVerified) {
-      home = OtpVerificationScreen(
-        role: role,
-        phoneNumber: phone,
-        session: _verificationSession,
-        onVerified: _verify,
-      );
-    } else if (role == DemoRole.admin) {
+    } else if (_selectedRole == DemoRole.admin) {
+      // Admin dashboard stays outside the main shell.
       home = AdminDashboardScreen(onSignOut: _signOut);
-    } else if (role == DemoRole.customer) {
-      home = CustomerHomeScreen(userPhone: phone, onSignOut: _signOut);
-    } else if (role == DemoRole.storeOwner) {
-      home = StoreOwnerDashboardScreen(userPhone: phone, onSignOut: _signOut);
-    } else if (role == DemoRole.driver &&
-        FirebaseService.instance.isReady &&
-        _authService.currentUser != null) {
-      home = _FirebaseWorkerGate(
-        userId: _authService.currentUser!.uid,
-        phoneNumber: phone,
-        onChanged: () => setState(() {}),
-        onSignOut: _signOut,
-      );
-    } else if (demoWorkerProfile.status != WorkerApplicationStatus.approved) {
-      home = WorkerOnboardingScreen(
-        phoneNumber: phone,
-        onChanged: () => setState(() {}),
-        onSignOut: _signOut,
-      );
     } else {
-      home = DriverHomeScreen(userPhone: phone, onSignOut: _signOut);
+      // All other users — authenticated or not — open into the marketplace-
+      // first shell. Worker and Store Owner tabs gate their own auth flows.
+      home = OmwMainShell(
+        phoneNumber: _phoneNumber,
+        isVerified: _isVerified,
+        selectedRole: _selectedRole,
+        availableRoles: _availableRoles,
+        verificationSession: _verificationSession,
+        onSelectRole: _selectRole,
+        onSendCode: _sendCode,
+        onVerify: _verify,
+        onSignOut: _signOut,
+        onRoleChanged: () => setState(() {}),
+      );
     }
 
     return MaterialApp(

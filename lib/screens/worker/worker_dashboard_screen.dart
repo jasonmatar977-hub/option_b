@@ -635,6 +635,25 @@ class _WorkerOnboardingScreenState extends State<WorkerOnboardingScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 20),
+            const Text(
+              'Need help joining?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Contact our support team on WhatsApp and we will guide '
+              'you through registration.',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 14),
+            _WorkerWhatsAppSupportCard(
+              workerName: _nameCtrl.text,
+              workerPhone: _phoneCtrl.text,
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

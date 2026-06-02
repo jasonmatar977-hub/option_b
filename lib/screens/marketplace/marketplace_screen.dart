@@ -7,12 +7,15 @@ class MarketplaceHomeScreen extends StatefulWidget {
     required this.deliveryLabel,
     required this.deliveryPoint,
     this.onSwitchAccount,
+    this.showAsRootTab = false,
   });
 
   final String userPhone;
   final String deliveryLabel;
   final DemoMapPoint deliveryPoint;
   final VoidCallback? onSwitchAccount;
+  // When true: suppress the back button and Switch action (root of bottom-nav shell).
+  final bool showAsRootTab;
 
   @override
   State<MarketplaceHomeScreen> createState() => _MarketplaceHomeScreenState();
@@ -126,18 +129,27 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
             .toList();
         return Scaffold(
           appBar: AppBar(
-            leading: OmwBackButton(
-              fallback: widget.onSwitchAccount == null
-                  ? null
-                  : () => switchAccountFrom(context, widget.onSwitchAccount!),
-            ),
+            // Root tab: no back button, no Switch action — feels like a home page.
+            automaticallyImplyLeading: !widget.showAsRootTab,
+            leading: widget.showAsRootTab
+                ? null
+                : OmwBackButton(
+                    fallback: widget.onSwitchAccount == null
+                        ? null
+                        : () => switchAccountFrom(
+                            context,
+                            widget.onSwitchAccount!,
+                          ),
+                  ),
             title: const Text('OMW Marketplace'),
             actions: [
               _CartIconButton(
                 count: _cartCount,
                 onPressed: () => _openCart(stores),
               ),
-              if (widget.onSwitchAccount != null)
+              // Switch button hidden when inside the bottom-nav shell —
+              // users switch roles via the Worker / My Store tabs instead.
+              if (!widget.showAsRootTab && widget.onSwitchAccount != null)
                 TextButton.icon(
                   onPressed: () =>
                       switchAccountFrom(context, widget.onSwitchAccount!),
@@ -188,18 +200,6 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   onChanged: (value) => setState(() => _query = value.trim()),
                 ),
                 const SizedBox(height: 16),
-                _MarketplaceDebugPanel(
-                  title: 'Debug marketplace data',
-                  lines: [
-                    'Stores loaded: ${stores.length}',
-                    if (snapshot.hasError) 'Store error: ${snapshot.error}',
-                    ...stores.map(
-                      (store) =>
-                          '${store.name} | ${store.id} | ${store.status} | open=${store.isOpen}',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
                 const SectionLabel('Categories'),
                 const _MarketplaceCategoryWrap(),
                 const SizedBox(height: 20),
@@ -210,8 +210,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                 else if (snapshot.hasError)
                   _MarketplaceEmptyState(
                     icon: Icons.cloud_off_outlined,
-                    text:
-                        'Could not load marketplace stores: ${snapshot.error}',
+                    text: _storeLoadError(snapshot.error),
                   )
                 else if (filteredStores.isEmpty)
                   const _MarketplaceEmptyState(
@@ -239,6 +238,21 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       },
     );
   }
+}
+
+// Returns a user-friendly error message for store-load failures.
+// Permission errors get a specific actionable hint; generic network
+// errors get a retry suggestion.
+String _storeLoadError(Object? error) {
+  final msg = error?.toString() ?? '';
+  if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
+    return 'Stores are not available yet. '
+        'If you are the admin, publish Firestore rules to enable public browsing.';
+  }
+  if (msg.contains('unavailable') || msg.contains('network')) {
+    return 'Could not reach the marketplace. Check your connection and try again.';
+  }
+  return 'Could not load stores. Please try again in a moment.';
 }
 
 class MarketplaceStoreScreen extends StatelessWidget {

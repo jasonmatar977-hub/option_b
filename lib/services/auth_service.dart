@@ -245,6 +245,56 @@ class AuthService {
     return _firebaseService.auth.signInWithCustomToken(customToken);
   }
 
+  // ---------------------------------------------------------------------------
+  // Email / password authentication (MVP primary login method)
+  // ---------------------------------------------------------------------------
+
+  Future<void> createUserWithEmailAndPassword(
+    String email,
+    String password,
+  ) async {
+    if (!_firebaseService.isReady) {
+      throw FirebaseAuthException(
+        code: 'operation-not-allowed',
+        message:
+            'Firebase is not available. '
+            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+      );
+    }
+    await _firebaseService.auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  Future<void> signInWithEmailAndPassword(String email, String password) async {
+    if (!_firebaseService.isReady) {
+      throw FirebaseAuthException(
+        code: 'operation-not-allowed',
+        message:
+            'Firebase is not available. '
+            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+      );
+    }
+    await _firebaseService.auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  /// Send a verification email to the currently signed-in user.
+  Future<void> sendEmailVerification() async {
+    if (!_firebaseService.isReady) return;
+    await _firebaseService.auth.currentUser?.sendEmailVerification();
+  }
+
+  /// Force-reload the current user's Firebase profile so that
+  /// [User.emailVerified] reflects the latest server state.
+  Future<void> reloadUser() async {
+    if (!_firebaseService.isReady) return;
+    await _firebaseService.auth.currentUser?.reload();
+  }
+
   Future<void> signOut() async {
     if (!_firebaseService.isReady) {
       return;

@@ -36,6 +36,7 @@ part 'app/app_routes.dart';
 part 'app/role_router.dart';
 part 'app/omw_app.dart';
 part 'app/app_theme.dart';
+part 'app/omw_shell.dart';
 part 'screens/auth/login_screen.dart';
 part 'screens/worker/worker_dashboard_screen.dart';
 part 'screens/owner/owner_dashboard_screen.dart';

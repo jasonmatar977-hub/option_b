@@ -201,6 +201,18 @@ String _friendlyFunctionsError(FirebaseFunctionsException error) {
   }
 }
 
+// OTP-verification–specific error mapping.
+// invalid-argument on the OTP screen means the code format is wrong, not the
+// phone number, so we surface the backend's own message instead of the
+// phone-number hint that _friendlyFunctionsError would show.
+String _friendlyOtpError(FirebaseFunctionsException error) {
+  if (error.code == 'invalid-argument') {
+    final msg = (error.message ?? '').trim();
+    return msg.isNotEmpty ? msg : 'Please enter the full verification code.';
+  }
+  return _friendlyFunctionsError(error);
+}
+
 String backendRoleNameFor(DemoRole role) => backendRoleFor(role).name;
 
 void switchAccountFrom(BuildContext context, VoidCallback onSignOut) {

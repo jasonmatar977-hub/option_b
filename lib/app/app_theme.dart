@@ -208,3 +208,98 @@ class _MotionLinesPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+// ---------------------------------------------------------------------------
+// OmwWelcomeScreen — first-launch branding page shown before the main shell
+// ---------------------------------------------------------------------------
+
+class OmwWelcomeScreen extends StatelessWidget {
+  const OmwWelcomeScreen({super.key, required this.onGetStarted});
+
+  final VoidCallback onGetStarted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBrandBlack,
+      body: Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _MotionLinesPainter())),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Spacer(flex: 2),
+                  const Center(child: OwmBrandMark(size: 110)),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'On My Way',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 42,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Marketplace · Ride · Delivery · Butler',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: kAccentYellow,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Shop local stores, book a ride, or send a package —\nall in one app.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: kMutedText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      height: 1.55,
+                    ),
+                  ),
+                  const Spacer(flex: 3),
+                  FilledButton(
+                    onPressed: onGetStarted,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kAccentYellow,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    child: const Text('Get Started'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'By continuing you accept our Terms of Service.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: kMutedText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

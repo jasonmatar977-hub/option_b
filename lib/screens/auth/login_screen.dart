@@ -430,7 +430,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     final useFirebase =
         FirebaseService.instance.isReady && session != null && !session.isDemo;
     if (code.isEmpty) {
-      setState(() => _error = 'Verification code is required');
+      setState(() => _error = 'Please enter the verification code.');
       return;
     }
     if (!useFirebase) {
@@ -441,6 +441,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         return;
       }
       await widget.onVerified();
+      return;
+    }
+    // Backend always issues 6-digit codes; catch short entries before the round-trip.
+    if (code.length != 6) {
+      setState(
+        () => _error = 'Please enter the full 6-digit verification code.',
+      );
       return;
     }
     if (session.verificationId.isEmpty && _authService.currentUser != null) {
@@ -472,7 +479,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = _friendlyFunctionsError(error));
+      // Use OTP-specific mapping so invalid-argument shows a code error,
+      // not the phone-number hint from _friendlyFunctionsError.
+      setState(() => _error = _friendlyOtpError(error));
     } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
@@ -484,7 +493,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
       setState(
         () => _error =
-            'We could not verify that code. Check the SMS and try again.',
+            'We could not verify that code. '
+            'Please check your WhatsApp or SMS message and try again.',
       );
     } finally {
       if (mounted) {
@@ -560,7 +570,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       return 'OMW test code sent to ${widget.phoneNumber}: 1234';
     }
     if (session?.channel == AuthOtpChannel.whatsApp) {
-      return 'Code sent on WhatsApp to ${widget.phoneNumber}.';
+      return 'A verification code was requested via WhatsApp for ${widget.phoneNumber}. '
+          'Please check your WhatsApp messages.';
     }
     return 'Code sent by SMS to ${widget.phoneNumber}.';
   }
@@ -573,3 +584,463 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
   }
 }
+
+// =============================================================================
+// EmailAuthScreen — email/password sign-in & sign-up with email verification.
+// Used by the Worker and Store Owner tabs as the MVP primary auth method.
+// WhatsApp OTP is preserved in the codebase but not wired to these buttons.
+// =============================================================================
+
+class EmailAuthScreen extends StatefulWidget {
+  const EmailAuthScreen({
+    super.key,
+    required this.role,
+    required this.onAuthenticated,
+    this.appBarTitle,
+  });
+
+  final DemoRole role;
+
+  /// Called after sign-in + email verified. The screen pops itself after this.
+  final Future<void> Function() onAuthenticated;
+
+  final String? appBarTitle;
+
+  @override
+  State<EmailAuthScreen> createState() => _EmailAuthScreenState();
+}
+
+class _EmailAuthScreenState extends State<EmailAuthScreen> {
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  final _authService = AuthService();
+
+  bool _isLogin = true;
+  bool _loading = false;
+  bool _showVerifyPending = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  String? _error;
+  String? _pendingEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    // If a Firebase user is already signed in, handle their state immediately.
+    _checkExistingSession();
+  }
+
+  void _checkExistingSession() {
+    final user = _authService.currentUser;
+    if (user == null) return;
+    if (user.emailVerified) {
+      // Already verified — proceed after the first frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _proceed());
+    } else if (user.email != null) {
+      // Signed in but not yet verified.
+      setState(() {
+        _showVerifyPending = true;
+        _pendingEmail = user.email;
+      });
+    }
+  }
+
+  /// Calls the parent callback then pops all routes back to the shell.
+  Future<void> _proceed() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      final nav = Navigator.of(context);
+      await widget.onAuthenticated();
+      if (mounted) nav.popUntil((r) => r.isFirst);
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String? _validateEmail(String v) {
+    if (v.isEmpty) return 'Please enter your email.';
+    if (!v.contains('@') || !v.contains('.')) {
+      return 'Please enter a valid email address.';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String v) {
+    if (v.isEmpty) return 'Please enter your password.';
+    if (v.length < 6) return 'Password must be at least 6 characters.';
+    return null;
+  }
+
+  Future<void> _submit() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+
+    final emailErr = _validateEmail(email);
+    if (emailErr != null) {
+      setState(() => _error = emailErr);
+      return;
+    }
+    final passErr = _validatePassword(password);
+    if (passErr != null) {
+      setState(() => _error = passErr);
+      return;
+    }
+    if (!_isLogin && _confirmCtrl.text != password) {
+      setState(() => _error = 'Passwords do not match.');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      if (_isLogin) {
+        await _authService.signInWithEmailAndPassword(email, password);
+        await _authService.reloadUser();
+        final user = _authService.currentUser;
+        if (user?.emailVerified == true) {
+          await _proceed();
+        } else {
+          // Signed in but email not verified — resend and show pending screen.
+          await _authService.sendEmailVerification();
+          if (mounted) {
+            setState(() {
+              _showVerifyPending = true;
+              _pendingEmail = email;
+              _loading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Verification email sent. Please check your inbox.',
+                ),
+              ),
+            );
+          }
+        }
+      } else {
+        // Sign-up
+        await _authService.createUserWithEmailAndPassword(email, password);
+        await _authService.sendEmailVerification();
+        if (mounted) {
+          setState(() {
+            _showVerifyPending = true;
+            _pendingEmail = email;
+            _loading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Account created! Verification email sent. Please check your inbox.',
+              ),
+            ),
+          );
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = _friendlyEmailAuthError(e);
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Something went wrong. Please try again.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkVerification() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _authService.reloadUser();
+      if (_authService.currentUser?.emailVerified == true) {
+        await _proceed();
+      } else {
+        setState(() {
+          _error =
+              'Email not verified yet. Please check your inbox and click the link.';
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _error = 'Could not check verification status. Please try again.';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _resendVerification() async {
+    try {
+      await _authService.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email sent. Please check your inbox.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not resend email. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _showVerifyPending ? _buildVerifyPending() : _buildForm();
+  }
+
+  Widget _buildForm() {
+    final roleLabel = _emailRoleLabel(widget.role);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.appBarTitle ?? (_isLogin ? 'Sign In' : 'Create Account'),
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              _isLogin ? 'Welcome back' : 'Create your OMW account',
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _isLogin
+                  ? 'Sign in to access your $roleLabel portal.'
+                  : 'Sign up to join OMW as a $roleLabel.',
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 28),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+            if (!_isLogin) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _confirmCtrl,
+                obscureText: _obscureConfirm,
+                decoration: InputDecoration(
+                  labelText: 'Confirm password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirm
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
+                  ),
+                ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              _ErrorBox(message: _error!),
+            ],
+            const SizedBox(height: 24),
+            PrimaryCtaButton(
+              label: _loading
+                  ? (_isLogin ? 'Signing in…' : 'Creating account…')
+                  : (_isLogin ? 'Sign In' : 'Create Account'),
+              onPressed: _loading ? null : _submit,
+            ),
+            if (_loading) ...[
+              const SizedBox(height: 14),
+              const Center(child: CircularProgressIndicator()),
+            ],
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => setState(() {
+                _isLogin = !_isLogin;
+                _error = null;
+              }),
+              child: Text(
+                _isLogin
+                    ? "Don't have an account? Sign up"
+                    : 'Already have an account? Sign in',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerifyPending() {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.appBarTitle ?? 'Verify Email')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 16),
+            const Center(child: OwmBrandMark(size: 72, badge: true)),
+            const SizedBox(height: 24),
+            const Text(
+              'Verify your email',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'A verification link was sent to:\n${_pendingEmail ?? ''}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please open your email, click the verification link, then tap the button below.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              _ErrorBox(message: _error!),
+            ],
+            const SizedBox(height: 32),
+            PrimaryCtaButton(
+              label: _loading ? 'Checking…' : 'I verified my email',
+              onPressed: _loading ? null : _checkVerification,
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _loading ? null : _resendVerification,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Resend verification email'),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => setState(() {
+                _showVerifyPending = false;
+                _error = null;
+              }),
+              child: const Text('Use a different email'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Small reusable error box used by EmailAuthScreen.
+// ---------------------------------------------------------------------------
+
+class _ErrorBox extends StatelessWidget {
+  const _ErrorBox({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: Colors.red.shade700,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for EmailAuthScreen
+// ---------------------------------------------------------------------------
+
+String _emailRoleLabel(DemoRole role) => switch (role) {
+  DemoRole.driver => 'Worker',
+  DemoRole.storeOwner => 'Store Owner',
+  DemoRole.customer => 'Customer',
+  DemoRole.admin => 'Admin',
+};
+
+String _friendlyEmailAuthError(FirebaseAuthException e) => switch (e.code) {
+  'user-not-found' ||
+  'wrong-password' ||
+  'invalid-credential' => 'Incorrect email or password. Please try again.',
+  'email-already-in-use' =>
+    'An account with this email already exists. Please sign in instead.',
+  'invalid-email' => 'Please enter a valid email address.',
+  'weak-password' => 'Password must be at least 6 characters.',
+  'too-many-requests' => 'Too many attempts. Please wait and try again.',
+  'network-request-failed' =>
+    'Network error. Check your connection and try again.',
+  'user-disabled' => 'This account has been disabled. Please contact support.',
+  'operation-not-allowed' => e.message ?? 'Email login is not enabled.',
+  _ => 'Authentication failed. Please try again.',
+};

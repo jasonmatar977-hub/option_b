@@ -1,0 +1,174 @@
+rules_version = '2';
+// OMW – On My Way  |  Firestore Security Rules
+// Project: swiftgo-b74fb
+//
+// HOW TO DEPLOY:
+//   Option A (recommended): firebase deploy --only firestore:rules --project swiftgo-b74fb
+//   Option B: paste these rules into Firebase Console → Firestore → Rules tab
+//
+// Role claims are set by the WhatsApp OTP Cloud Function (custom token).
+// Valid role values: 'customer', 'worker', 'storeOwner', 'owner'
+//
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Helper functions
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return request.auth.token.get('role', '');
+    }
+
+    function isOwnerOrAdmin() {
+      return isSignedIn() && userRole() in ['owner'];
+    }
+
+    function isStoreOwnerOrAdmin() {
+      return isSignedIn() && userRole() in ['storeOwner', 'owner'];
+    }
+
+    function isWorkerOrAdmin() {
+      return isSignedIn() && userRole() in ['worker', 'owner'];
+    }
+
+    // -------------------------------------------------------------------------
+    // MARKETPLACE — public read so visitors see stores/products without login
+    // -------------------------------------------------------------------------
+
+    match /stores/{storeId} {
+      // Anyone can browse the marketplace (no login required)
+      allow read: if true;
+      // Only authenticated store owners / platform owners may write
+      allow write: if isStoreOwnerOrAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isStoreOwnerOrAdmin();
+    }
+
+    match /productCategories/{catId} {
+      allow read: if true;
+      allow write: if isStoreOwnerOrAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // MARKETPLACE ORDERS
+    // -------------------------------------------------------------------------
+
+    match /marketplaceOrders/{orderId} {
+      // Customers read their own orders; store owners / workers / admins read all
+      allow read: if isSignedIn();
+      // Customers create orders
+      allow create: if isSignedIn();
+      // Workers and store owners update order status
+      allow update: if isWorkerOrAdmin() || isStoreOwnerOrAdmin();
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // STORE EXPENSES (store owner's financial records)
+    // -------------------------------------------------------------------------
+
+    match /storeExpenses/{expenseId} {
+      allow read, write: if isStoreOwnerOrAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // USERS (profiles)
+    // -------------------------------------------------------------------------
+
+    match /users/{userId} {
+      // Each user can read/write their own profile
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      // Platform owner can read any profile
+      allow read: if isOwnerOrAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // WORKERS
+    // -------------------------------------------------------------------------
+
+    match /workers/{workerId} {
+      allow read: if isSignedIn()
+        && (request.auth.uid == workerId || isOwnerOrAdmin());
+      allow write: if isSignedIn()
+        && (request.auth.uid == workerId || isOwnerOrAdmin());
+
+      // Worker document uploads (subcollection)
+      match /documents/{docId} {
+        allow read: if isSignedIn()
+          && (request.auth.uid == workerId || isOwnerOrAdmin());
+        allow write: if isSignedIn()
+          && (request.auth.uid == workerId || isOwnerOrAdmin());
+      }
+    }
+
+    match /workerDocuments/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // -------------------------------------------------------------------------
+    // DRIVER / WORKER LOCATIONS
+    // -------------------------------------------------------------------------
+
+    match /driverLocations/{workerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == workerId;
+    }
+
+    // -------------------------------------------------------------------------
+    // SERVICE REQUESTS / JOBS
+    // -------------------------------------------------------------------------
+
+    match /serviceRequests/{reqId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /jobs/{jobId} {
+      allow read, write: if isSignedIn();
+
+      // In-job chat messages
+      match /messages/{msgId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /jobChats/{jobId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{msgId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // NOTIFICATIONS
+    // -------------------------------------------------------------------------
+
+    match /notifications/{notifId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // -------------------------------------------------------------------------
+    // OTP SESSIONS — backend only (Cloud Functions use Admin SDK, bypass rules)
+    // Never expose to clients.
+    // -------------------------------------------------------------------------
+
+    match /whatsappOtpSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // DEFAULT — deny everything not explicitly matched above
+    // -------------------------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

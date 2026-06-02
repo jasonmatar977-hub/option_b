@@ -106,45 +106,66 @@ async function sendMetaWhatsAppText(
   code: string,
 ): Promise<string> {
   const token = metaAccessToken.value();
+  console.log("[sendMeta] token present:", !!token, "| phoneDigits suffix:", phoneDigits.slice(-4));
   if (!token) {
     throw new HttpsError(
       "failed-precondition",
-      "WhatsApp OTP provider is not configured.",
+      "WhatsApp provider token is not configured.",
     );
   }
   const phoneNumberId =
     process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? defaultPhoneNumberId;
-  const response = await fetch(
-    `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phoneDigits,
-        type: "text",
-        text: {
-          preview_url: false,
-          body: `Your OMW verification code is: ${code}`,
+  console.log("[sendMeta] phoneNumberId:", phoneNumberId);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-      }),
-    },
-  );
-  const body = (await response.json().catch(() => ({}))) as {
-    messages?: Array<{ id?: string; message_status?: string }>;
-    error?: { message?: string };
-  };
-  if (!response.ok) {
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: phoneDigits,
+          type: "text",
+          text: {
+            preview_url: false,
+            body: `Your OMW verification code is: ${code}`,
+          },
+        }),
+      },
+    );
+  } catch (networkErr) {
+    console.error("[sendMeta] network error:", String(networkErr));
     throw new HttpsError(
       "unavailable",
-      body.error?.message ??
-        "Meta WhatsApp could not send the verification code.",
+      "WhatsApp provider request failed. Check backend logs.",
     );
   }
-  return body.messages?.[0]?.message_status ?? "accepted";
+
+  const body = (await response.json().catch(() => ({}))) as {
+    messages?: Array<{ id?: string; message_status?: string }>;
+    error?: { message?: string; code?: number; type?: string };
+  };
+  console.log("[sendMeta] HTTP status:", response.status);
+  if (!response.ok) {
+    console.error(
+      "[sendMeta] Meta API rejected request | status:", response.status,
+      "| error code:", body.error?.code,
+      "| error type:", body.error?.type,
+      "| error message:", body.error?.message,
+    );
+    throw new HttpsError(
+      "unavailable",
+      "WhatsApp provider rejected the OTP request. Check Meta token, phone number ID, and test recipient.",
+    );
+  }
+  const messageStatus = body.messages?.[0]?.message_status ?? "accepted";
+  console.log("[sendWhatsAppOtp] WhatsApp OTP send accepted by Meta | message_status:", messageStatus);
+  return messageStatus;
 }
 
 async function issueCustomToken(phoneNumber: string, role: OtpRole) {
@@ -206,7 +227,28 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
   const data = (request.data ?? {}) as Record<string, unknown>;
   const phone = normalizePhone(data.phoneNumber);
   const role = normalizeRole(data.role);
-  assertTesterAllowed(phone.digits);
+
+  const testMode = isTestMode();
+  const testers = allowedTesterDigits();
+  console.log(
+    "[sendWhatsAppOtp] phoneDigits suffix:", phone.digits.slice(-4),
+    "| testMode:", testMode,
+    "| allowedTestersCount:", testers.length,
+    "| tokenPresent:", !!metaAccessToken.value(),
+  );
+
+  try {
+    assertTesterAllowed(phone.digits);
+  } catch (testerErr) {
+    console.error(
+      "[sendWhatsAppOtp] tester check failed |",
+      testerErr instanceof HttpsError
+        ? `code=${testerErr.code} message=${testerErr.message}`
+        : String(testerErr),
+    );
+    throw testerErr;
+  }
+  console.log("[sendWhatsAppOtp] tester check passed");
 
   const sessionRef = db.collection(otpCollection).doc(sessionIdFor(phone.digits));
   const existing = await sessionRef.get();
@@ -224,7 +266,18 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
   }
 
   const code = generateOtp();
-  const providerStatus = await sendMetaWhatsAppText(phone.digits, code);
+  let providerStatus: string;
+  try {
+    providerStatus = await sendMetaWhatsAppText(phone.digits, code);
+  } catch (sendErr) {
+    if (sendErr instanceof HttpsError) {
+      console.error("[sendWhatsAppOtp] sendMeta threw HttpsError | code:", sendErr.code, "| message:", sendErr.message);
+      throw sendErr;
+    }
+    console.error("[sendWhatsAppOtp] sendMeta threw unexpected error:", String(sendErr));
+    throw new HttpsError("unavailable", "WhatsApp provider request failed. Check backend logs.");
+  }
+
   const now = admin.firestore.Timestamp.now();
   await sessionRef.set({
     id: sessionRef.id,
@@ -247,6 +300,7 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
     verifiedAt: null,
   });
 
+  console.log("[sendWhatsAppOtp] session stored | providerStatus:", providerStatus);
   return {
     sessionId: sessionRef.id,
     success: true,

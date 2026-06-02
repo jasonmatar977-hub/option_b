@@ -42,6 +42,13 @@ class AppConfig {
   static const double defaultCommissionRate = 0.15;
   static const double commissionRate = 0.15;
 
+  // Set via --dart-define=OMW_SUPPORT_WHATSAPP_NUMBER=9611234567
+  // Digits only with country code, no + prefix, e.g. 9611234567
+  static const String supportWhatsAppNumber = String.fromEnvironment(
+    'OMW_SUPPORT_WHATSAPP_NUMBER',
+    defaultValue: '',
+  );
+
   static bool get hasGoogleMapsApiKey => googleMapsApiKey.isNotEmpty;
   static double platformCommissionFor(num gross) => gross * commissionRate;
   static double workerPayoutFor(num gross) => gross * (1 - commissionRate);

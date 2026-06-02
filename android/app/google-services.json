@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "57773453551",
+    "project_id": "swiftgo-b74fb",
+    "storage_bucket": "swiftgo-b74fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:57773453551:android:3ee1f10ceeb311c37cab1a",
+        "android_client_info": {
+          "package_name": "com.example.option_b"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQLc5glIq8sbpLqOAdHiNMIDoX6ufvX1A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:57773453551:android:8e196b41ed1414447cab1a",
+        "android_client_info": {
+          "package_name": "com.example.taxi_demo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQLc5glIq8sbpLqOAdHiNMIDoX6ufvX1A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
