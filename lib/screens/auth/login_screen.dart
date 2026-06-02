@@ -953,17 +953,52 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
-              'Please open your email, click the verification link, then tap the button below.',
+              'Click the link in your email, then tap "I verified my email" below.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
+            const SizedBox(height: 14),
+            // Spam/junk tip
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.amber.shade700,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Did not receive the email?\n'
+                      '• Check your spam / junk folder.\n'
+                      '• Some providers delay delivery by a few minutes.\n'
+                      '• Make sure the address is spelled correctly.',
+                      style: TextStyle(
+                        color: Colors.amber.shade900,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             if (_error != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               _ErrorBox(message: _error!),
             ],
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             PrimaryCtaButton(
               label: _loading ? 'Checking…' : 'I verified my email',
               onPressed: _loading ? null : _checkVerification,

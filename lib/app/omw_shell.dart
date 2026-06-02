@@ -67,6 +67,15 @@ class _OmwMainShellState extends State<OmwMainShell> {
     onSwitchAccount: widget.onSignOut,
   );
 
+  // Delivery tab — courier/delivery request flow.
+  Widget _deliveryTab() => MainMapScreen(
+    userPhone: _phone,
+    onSignOut: widget.onSignOut,
+    initialService: ServiceType.courier,
+  );
+
+  // Kept for future restoration but not wired to main navigation.
+  // ignore: unused_element
   Widget _rideTab() => MainMapScreen(
     userPhone: _phone,
     onSignOut: widget.onSignOut,
@@ -151,12 +160,10 @@ class _OmwMainShellState extends State<OmwMainShell> {
       case 0:
         return _marketplace();
       case 1:
-        return _rideTab();
+        return _deliveryTab();
       case 2:
-        return const _ButlerPlaceholder();
-      case 3:
         return _workerTab();
-      case 4:
+      case 3:
         return _storeOwnerTab();
       default:
         return const SizedBox.shrink();
@@ -184,18 +191,13 @@ class _OmwMainShellState extends State<OmwMainShell> {
             label: 'Market',
           ),
           NavigationDestination(
-            icon: Icon(Icons.directions_car_outlined),
-            selectedIcon: Icon(Icons.directions_car),
-            label: 'Taxi',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.room_service_outlined),
-            selectedIcon: Icon(Icons.room_service),
-            label: 'Butler',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.delivery_dining_outlined),
             selectedIcon: Icon(Icons.delivery_dining),
+            label: 'Delivery',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.work_outline),
+            selectedIcon: Icon(Icons.work),
             label: 'Worker',
           ),
           NavigationDestination(
@@ -217,48 +219,9 @@ class _TabStub extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
-// ---------------------------------------------------------------------------
-// Butler placeholder
-// ---------------------------------------------------------------------------
-
-class _ButlerPlaceholder extends StatelessWidget {
-  const _ButlerPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Butler / Services')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const OwmBrandMark(size: 72),
-              const SizedBox(height: 24),
-              const Text(
-                'Butler Services',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Butler services coming soon.\n'
-                'On-demand errands, shopping, and personal tasks — '
-                'all on their way.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// Butler tab removed from MVP navigation (client decision 2026-06-02).
+// Restore by adding a 5th NavigationDestination and a case in _buildTab().
+// Taxi ride tab also hidden (see _rideTab below); ServiceType.courier is now Delivery.
 
 // ---------------------------------------------------------------------------
 // Worker tab — landing page shown when user is not signed in as a worker

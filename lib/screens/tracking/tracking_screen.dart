@@ -755,6 +755,7 @@ class _TrackingMapCard extends StatelessWidget {
               routePoints: routePointsFor(driverPoint),
               cameraUpdateKey: cameraUpdateKey ^ driverPoint.hashCode,
               showRoute: true,
+              gesturesEnabled: false, // embedded in scroll view
             ),
           ),
         ),

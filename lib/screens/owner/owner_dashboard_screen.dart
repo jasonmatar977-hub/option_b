@@ -2004,6 +2004,7 @@ class _OwnerLiveMapPreview extends StatelessWidget {
                   ],
             height: 220,
             showRoute: selected != null,
+            gesturesEnabled: false, // embedded in scroll view
           ),
         ),
         const SizedBox(height: 8),

@@ -59,6 +59,10 @@ class AppMap extends StatefulWidget {
     this.height,
     this.padding = EdgeInsets.zero,
     this.showRoute = false,
+    // Set to false when the map is embedded in a scrollable page so that
+    // touch/scroll gestures pass through to the parent scroll view instead
+    // of panning/zooming the map unintentionally.
+    this.gesturesEnabled = true,
   });
 
   final DemoMapPoint pickup;
@@ -72,6 +76,7 @@ class AppMap extends StatefulWidget {
   final double? height;
   final EdgeInsets padding;
   final bool showRoute;
+  final bool gesturesEnabled;
 
   @override
   State<AppMap> createState() => _AppMapState();
@@ -200,6 +205,12 @@ class _AppMapState extends State<AppMap> {
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       padding: widget.padding,
+      // Gesture flags: disabled for embedded preview maps so the parent
+      // scroll view gets touch/scroll events instead of the map.
+      scrollGesturesEnabled: widget.gesturesEnabled,
+      zoomGesturesEnabled: widget.gesturesEnabled,
+      rotateGesturesEnabled: widget.gesturesEnabled,
+      tiltGesturesEnabled: widget.gesturesEnabled,
       markers: markers,
       polylines: {
         if (widget.showRoute && routePoints.length > 1)

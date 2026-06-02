@@ -26,6 +26,8 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   final List<backend.MarketplaceCartItem> _cart = [];
   String _query = '';
+  // null means "all categories"; non-null filters stores to that category.
+  String? _selectedCategory;
 
   @override
   void dispose() {
@@ -119,14 +121,18 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       stream: _service.watchStores(),
       builder: (context, snapshot) {
         final stores = snapshot.data ?? const <backend.MarketplaceStore>[];
-        final filteredStores = stores
-            .where(
-              (store) =>
-                  _query.isEmpty ||
-                  store.name.toLowerCase().contains(_query.toLowerCase()) ||
-                  store.category.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
+        final filteredStores = stores.where((store) {
+          final matchesCategory =
+              _selectedCategory == null ||
+              store.category.toLowerCase().contains(
+                _selectedCategory!.toLowerCase(),
+              );
+          final matchesQuery =
+              _query.isEmpty ||
+              store.name.toLowerCase().contains(_query.toLowerCase()) ||
+              store.category.toLowerCase().contains(_query.toLowerCase());
+          return matchesCategory && matchesQuery;
+        }).toList();
         return Scaffold(
           appBar: AppBar(
             // Root tab: no back button, no Switch action — feels like a home page.
@@ -200,8 +206,20 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   onChanged: (value) => setState(() => _query = value.trim()),
                 ),
                 const SizedBox(height: 16),
-                const SectionLabel('Categories'),
-                const _MarketplaceCategoryWrap(),
+                SectionLabel(
+                  _selectedCategory == null
+                      ? 'Categories'
+                      : 'Category: $_selectedCategory',
+                ),
+                _MarketplaceCategoryWrap(
+                  selectedCategory: _selectedCategory,
+                  onCategorySelected: (cat) => setState(() {
+                    // Tap same category again → clear filter (toggle).
+                    _selectedCategory = _selectedCategory == cat ? null : cat;
+                    _searchCtrl.clear();
+                    _query = '';
+                  }),
+                ),
                 const SizedBox(height: 20),
                 const SectionLabel('Featured stores'),
                 const SizedBox(height: 8),
@@ -325,16 +343,6 @@ class MarketplaceStoreScreen extends StatelessWidget {
               children: [
                 _StoreHero(store: store),
                 const SizedBox(height: 18),
-                _MarketplaceDebugPanel(
-                  title: 'Debug selected store',
-                  lines: [
-                    'Selected store: ${store.name}',
-                    'Selected store id: ${store.id}',
-                    'Products loaded: ${products.length}',
-                    if (snapshot.hasError) 'Product error: ${snapshot.error}',
-                  ],
-                ),
-                const SizedBox(height: 18),
                 const SectionLabel('Products'),
                 const SizedBox(height: 8),
                 if (snapshot.connectionState == ConnectionState.waiting)
@@ -368,43 +376,6 @@ class MarketplaceStoreScreen extends StatelessWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _MarketplaceDebugPanel extends StatelessWidget {
-  const _MarketplaceDebugPanel({required this.title, required this.lines});
-
-  final String title;
-  final List<String> lines;
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      collapsedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SelectableText(
-            lines.isEmpty ? 'No debug data.' : lines.join('\n'),
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -786,9 +757,15 @@ class _CartIconButton extends StatelessWidget {
 }
 
 class _MarketplaceCategoryWrap extends StatelessWidget {
-  const _MarketplaceCategoryWrap();
+  const _MarketplaceCategoryWrap({
+    required this.selectedCategory,
+    required this.onCategorySelected,
+  });
 
-  static const categories = [
+  final String? selectedCategory;
+  final ValueChanged<String> onCategorySelected;
+
+  static const _categories = [
     ('Grocery', Icons.local_grocery_store_outlined),
     ('Pharmacy', Icons.local_pharmacy_outlined),
     ('Restaurants', Icons.restaurant_outlined),
@@ -804,17 +781,28 @@ class _MarketplaceCategoryWrap extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: categories
-          .map(
-            (category) => Chip(
-              avatar: Icon(category.$2, size: 18, color: kBrandBlack),
-              label: Text(category.$1),
-              backgroundColor: kAccentYellow.withValues(alpha: 0.28),
-              labelStyle: const TextStyle(fontWeight: FontWeight.w800),
-              side: BorderSide(color: kDeepGold.withValues(alpha: 0.25)),
-            ),
-          )
-          .toList(),
+      children: _categories.map((cat) {
+        final isSelected = selectedCategory == cat.$1;
+        return ActionChip(
+          avatar: Icon(
+            cat.$2,
+            size: 18,
+            color: isSelected ? Colors.white : kBrandBlack,
+          ),
+          label: Text(cat.$1),
+          backgroundColor: isSelected
+              ? kDeepGold
+              : kAccentYellow.withValues(alpha: 0.28),
+          labelStyle: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: isSelected ? Colors.white : kBrandBlack,
+          ),
+          side: BorderSide(
+            color: isSelected ? kDeepGold : kDeepGold.withValues(alpha: 0.25),
+          ),
+          onPressed: () => onCategorySelected(cat.$1),
+        );
+      }).toList(),
     );
   }
 }
@@ -1207,19 +1195,61 @@ class _CartTotals extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _KeyValueRow(
+          _TotalsRow(
             label: 'Subtotal',
             value: '\$${subtotal.toStringAsFixed(2)}',
           ),
           const SizedBox(height: 8),
-          _KeyValueRow(
+          _TotalsRow(
             label: 'Delivery fee',
             value: '\$${deliveryFee.toStringAsFixed(2)}',
           ),
-          const Divider(color: kMutedText),
-          _KeyValueRow(label: 'Total', value: '\$${total.toStringAsFixed(2)}'),
+          const Divider(color: kMutedText, height: 20),
+          _TotalsRow(
+            label: 'Total',
+            value: '\$${total.toStringAsFixed(2)}',
+            highlight: true,
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Row widget for use on dark (kBrandBlack) backgrounds — always uses light text.
+class _TotalsRow extends StatelessWidget {
+  const _TotalsRow({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
+
+  final String label;
+  final String value;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: kMutedText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: highlight ? kAccentYellow : Colors.white,
+            fontWeight: highlight ? FontWeight.w900 : FontWeight.w800,
+            fontSize: highlight ? 17 : null,
+          ),
+        ),
+      ],
     );
   }
 }

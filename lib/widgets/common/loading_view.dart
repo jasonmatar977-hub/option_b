@@ -233,6 +233,7 @@ class _DriverNearbyOffersPanel extends StatelessWidget {
             routePoints: routePoints,
             height: 230,
             showRoute: activeJob != null || activeMarketplaceJob != null,
+            gesturesEnabled: false, // embedded in scroll view
           ),
         ),
         const SizedBox(height: 12),

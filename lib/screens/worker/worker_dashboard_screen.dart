@@ -3248,6 +3248,7 @@ class _DriverActiveJobPanel extends StatelessWidget {
             cameraUpdateKey: status.hashCode,
             height: 210,
             showRoute: true,
+            gesturesEnabled: false, // embedded in scroll view
           ),
         ),
         const SizedBox(height: 12),
