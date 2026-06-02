@@ -179,6 +179,7 @@ class AppUser {
     this.whatsappVerified = false,
     this.whatsappVerifiedAt,
     this.authProvider = '',
+    this.emailVerified = false,
   });
 
   final String uid;
@@ -195,6 +196,7 @@ class AppUser {
   final bool whatsappVerified;
   final DateTime? whatsappVerifiedAt;
   final String authProvider;
+  final bool emailVerified;
 
   String get phone => phoneNumber;
   AppRole get role => activeRole;
@@ -223,6 +225,7 @@ class AppUser {
       whatsappVerified: data['whatsappVerified'] as bool? ?? false,
       whatsappVerifiedAt: _dateFromValue(data['whatsappVerifiedAt']),
       authProvider: data['authProvider'] as String? ?? '',
+      emailVerified: data['emailVerified'] as bool? ?? false,
     );
   }
 
@@ -243,6 +246,7 @@ class AppUser {
     'whatsappVerified': whatsappVerified,
     'whatsappVerifiedAt': _dateToValue(whatsappVerifiedAt),
     'authProvider': authProvider,
+    'emailVerified': emailVerified,
   };
 
   AppUser copyWith({
@@ -259,6 +263,7 @@ class AppUser {
     bool? whatsappVerified,
     DateTime? whatsappVerifiedAt,
     String? authProvider,
+    bool? emailVerified,
   }) {
     return AppUser(
       uid: uid,
@@ -275,6 +280,7 @@ class AppUser {
       whatsappVerified: whatsappVerified ?? this.whatsappVerified,
       whatsappVerifiedAt: whatsappVerifiedAt ?? this.whatsappVerifiedAt,
       authProvider: authProvider ?? this.authProvider,
+      emailVerified: emailVerified ?? this.emailVerified,
     );
   }
 }

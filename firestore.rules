@@ -23,16 +23,43 @@ service cloud.firestore {
       return request.auth.token.get('role', '');
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasProfileRole(role) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && role in userDoc().data.get('roles', []);
+    }
+
     function isOwnerOrAdmin() {
-      return isSignedIn() && userRole() in ['owner'];
+      return isSignedIn() && (userRole() in ['owner'] || hasProfileRole('owner'));
     }
 
     function isStoreOwnerOrAdmin() {
-      return isSignedIn() && userRole() in ['storeOwner', 'owner'];
+      return isSignedIn()
+        && (
+          userRole() in ['storeOwner', 'owner']
+          || hasProfileRole('storeOwner')
+          || hasProfileRole('owner')
+        );
     }
 
     function isWorkerOrAdmin() {
-      return isSignedIn() && userRole() in ['worker', 'owner'];
+      return isSignedIn()
+        && (
+          userRole() in ['worker', 'owner']
+          || hasProfileRole('worker')
+          || hasProfileRole('owner')
+        );
+    }
+
+    function ownsStoreWrite(storeId) {
+      return isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && (!exists(/databases/$(database)/documents/stores/$(storeId))
+          || resource.data.ownerId == request.auth.uid);
     }
 
     // -------------------------------------------------------------------------
@@ -42,8 +69,10 @@ service cloud.firestore {
     match /stores/{storeId} {
       // Anyone can browse the marketplace (no login required)
       allow read: if true;
-      // Only authenticated store owners / platform owners may write
-      allow write: if isStoreOwnerOrAdmin();
+      // Store owners may create/update only their own store profile.
+      allow create, update: if isOwnerOrAdmin()
+        || (isStoreOwnerOrAdmin() && ownsStoreWrite(storeId));
+      allow delete: if isOwnerOrAdmin();
     }
 
     match /products/{productId} {

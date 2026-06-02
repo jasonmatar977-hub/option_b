@@ -113,7 +113,23 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Store profile saved.')));
-    } catch (_) {
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[StoreOwner] Save store profile FirebaseException: '
+        '${error.code} ${error.message}',
+      );
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'permission-denied' =>
+          'You do not have permission to save this store profile. Please sign out and sign in again as Store Owner.',
+        'unauthenticated' => 'Please sign in again before saving.',
+        _ => 'Could not save store profile: ${error.code}',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      debugPrint('[StoreOwner] Save store profile failed: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not save store profile.')),

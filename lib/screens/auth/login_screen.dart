@@ -704,40 +704,79 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
         if (user?.emailVerified == true) {
           await _proceed();
         } else {
-          // Signed in but email not verified — resend and show pending screen.
-          await _authService.sendEmailVerification();
+          // Signed in but email not verified — attempt resend then show pending.
+          debugPrint(
+            '[EmailAuth] Sign-in: email not verified for $email. Re-sending…',
+          );
+          String? sendError;
+          try {
+            await _authService.sendEmailVerification();
+            debugPrint('[EmailAuth] Re-send OK.');
+          } on FirebaseAuthException catch (e) {
+            debugPrint('[EmailAuth] Re-send error: ${e.code} — ${e.message}');
+            sendError = _friendlyEmailAuthError(e);
+          } catch (e) {
+            debugPrint('[EmailAuth] Re-send unexpected error: $e');
+            sendError =
+                'Could not send verification email. Use "Resend" on the next screen.';
+          }
           if (mounted) {
             setState(() {
               _showVerifyPending = true;
               _pendingEmail = email;
               _loading = false;
+              if (sendError != null) _error = sendError;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Verification email sent. Please check your inbox.',
+            if (sendError == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Verification email sent. Please check your inbox.',
+                  ),
                 ),
-              ),
-            );
+              );
+            }
           }
         }
       } else {
-        // Sign-up
+        // Sign-up: create account first, then attempt verification email
+        // separately so a failed send still shows the pending screen.
         await _authService.createUserWithEmailAndPassword(email, password);
-        await _authService.sendEmailVerification();
+        debugPrint(
+          '[EmailAuth] Account created for $email. Sending verification…',
+        );
+        String? sendError;
+        try {
+          await _authService.sendEmailVerification();
+          debugPrint('[EmailAuth] Verification email dispatched OK.');
+        } on FirebaseAuthException catch (e) {
+          debugPrint(
+            '[EmailAuth] sendEmailVerification error: ${e.code} — ${e.message}',
+          );
+          sendError = _friendlyEmailAuthError(e);
+        } catch (e) {
+          debugPrint('[EmailAuth] sendEmailVerification unexpected error: $e');
+          sendError =
+              'Verification email could not be sent automatically. '
+              'Use "Resend verification email" on the next screen.';
+        }
         if (mounted) {
           setState(() {
             _showVerifyPending = true;
             _pendingEmail = email;
             _loading = false;
+            // Surface send error inline so user sees it immediately.
+            if (sendError != null) _error = sendError;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Account created! Verification email sent. Please check your inbox.',
+          if (sendError == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Account created! Verification email sent. Check your inbox.',
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -782,8 +821,11 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
   }
 
   Future<void> _resendVerification() async {
+    debugPrint('[EmailAuth] Resend requested for $_pendingEmail');
+    setState(() => _error = null);
     try {
       await _authService.sendEmailVerification();
+      debugPrint('[EmailAuth] Resend dispatched OK.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -791,7 +833,16 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
           ),
         );
       }
-    } catch (_) {
+    } on FirebaseAuthException catch (e) {
+      debugPrint(
+        '[EmailAuth] Resend FirebaseAuthException: ${e.code} — ${e.message}',
+      );
+      if (mounted) {
+        // Show the real error so the user/admin knows what went wrong.
+        setState(() => _error = _friendlyEmailAuthError(e));
+      }
+    } catch (e) {
+      debugPrint('[EmailAuth] Resend unexpected error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -994,6 +1045,42 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                 ],
               ),
             ),
+            // Firebase Console requirements (admin / developer reference)
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Firebase Console — required settings',
+                    style: TextStyle(
+                      color: Colors.blue.shade800,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '1. Authentication → Sign-in method → Email/Password: ON\n'
+                    '2. Authentication → Settings → Authorized domains:\n'
+                    '   localhost\n'
+                    '   jasonmatar977-hub.github.io',
+                    style: TextStyle(
+                      color: Colors.blue.shade700,
+                      fontSize: 11,
+                      height: 1.6,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 14),
               _ErrorBox(message: _error!),
@@ -1064,18 +1151,31 @@ String _emailRoleLabel(DemoRole role) => switch (role) {
   DemoRole.admin => 'Admin',
 };
 
-String _friendlyEmailAuthError(FirebaseAuthException e) => switch (e.code) {
-  'user-not-found' ||
-  'wrong-password' ||
-  'invalid-credential' => 'Incorrect email or password. Please try again.',
-  'email-already-in-use' =>
-    'An account with this email already exists. Please sign in instead.',
-  'invalid-email' => 'Please enter a valid email address.',
-  'weak-password' => 'Password must be at least 6 characters.',
-  'too-many-requests' => 'Too many attempts. Please wait and try again.',
-  'network-request-failed' =>
-    'Network error. Check your connection and try again.',
-  'user-disabled' => 'This account has been disabled. Please contact support.',
-  'operation-not-allowed' => e.message ?? 'Email login is not enabled.',
-  _ => 'Authentication failed. Please try again.',
-};
+String _friendlyEmailAuthError(FirebaseAuthException e) {
+  switch (e.code) {
+    case 'email-already-in-use':
+      return 'This email is already registered. Please sign in instead.';
+    case 'invalid-email':
+      return 'Please enter a valid email address.';
+    case 'weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'operation-not-allowed':
+      return 'Email/password login is not enabled in Firebase.';
+    case 'network-request-failed':
+      return 'Network error. Please check your connection.';
+    case 'too-many-requests':
+      return 'Too many attempts. Please wait and try again.';
+    case 'user-disabled':
+      return 'This account has been disabled.';
+    case 'wrong-password':
+    case 'invalid-credential':
+      return 'Incorrect email or password.';
+    case 'user-not-found':
+      return 'No account found with this email. Please create an account first.';
+    default:
+      debugPrint(
+        '[EmailAuth] Unhandled FirebaseAuthException: ${e.code} ${e.message}',
+      );
+      return 'Authentication failed: ${e.code}';
+  }
+}

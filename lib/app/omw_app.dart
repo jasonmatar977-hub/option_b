@@ -175,6 +175,9 @@ class _OptionBAppState extends State<OptionBApp> {
             ? now
             : existing?.whatsappVerifiedAt,
         authProvider: authProvider,
+        emailVerified: isEmailUser
+            ? user.emailVerified
+            : existing?.emailVerified ?? false,
       ),
     );
   }

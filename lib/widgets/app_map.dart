@@ -134,7 +134,7 @@ class _AppMapState extends State<AppMap> {
 
   @override
   Widget build(BuildContext context) {
-    final child = _canUseGoogleMap
+    Widget child = _canUseGoogleMap
         ? _mapWithStatusLabel(
             child: _googleMap(),
             label: 'Google Maps active',
@@ -144,6 +144,25 @@ class _AppMapState extends State<AppMap> {
             label: _isLoadingGoogleMap ? 'Loading map…' : 'Map preview',
             reason: _fallbackReason,
           );
+
+    if (!widget.gesturesEnabled) {
+      // IgnorePointer is the critical web fix:
+      // On Flutter Web it sets pointer-events:none on the underlying
+      // HtmlElementView so the browser stops routing scroll/touch events to
+      // the map element — they fall through to the parent ScrollView instead.
+      // On native it bypasses Flutter's hit-testing for the same effect.
+      // The GoogleMap gesture flags (scrollGesturesEnabled etc.) set earlier
+      // are kept as belt-and-suspenders but are insufficient alone on web.
+      child = Stack(
+        fit: StackFit.expand,
+        children: [
+          IgnorePointer(child: child),
+          // Subtle label so users know the map is a non-interactive preview.
+          const Positioned(right: 8, bottom: 8, child: _MapPreviewBadge()),
+        ],
+      );
+    }
+
     if (widget.height == null) {
       return child;
     }
@@ -377,6 +396,31 @@ class _AppMapState extends State<AppMap> {
       Alignment(-0.36, -0.08),
     ];
     return alignments[index % alignments.length];
+  }
+}
+
+/// Small badge shown on embedded (non-interactive) map previews.
+/// Communicates to the user that the map is view-only in this context.
+class _MapPreviewBadge extends StatelessWidget {
+  const _MapPreviewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'Map preview',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
 

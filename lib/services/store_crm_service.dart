@@ -125,30 +125,41 @@ class StoreCrmService {
       return id;
     }
     final now = DateTime.now();
+    final currentUid = _firebaseService.auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unauthenticated',
+        message: 'No authenticated user is available for store profile save.',
+      );
+    }
+    final ownedStore = store.copyWith(ownerId: currentUid);
     final ref = store.id.isEmpty ? _stores.doc() : _stores.doc(store.id);
-    final status = store.status == 'pending_approval' ? 'active' : store.status;
+    final status = ownedStore.status == 'pending_approval'
+        ? 'active'
+        : ownedStore.status;
     await ref.set({
-      ...store
+      ...ownedStore
           .copyWith(
             id: ref.id,
             status: status,
             updatedAt: now,
-            createdAt: store.createdAt ?? now,
+            createdAt: ownedStore.createdAt ?? now,
           )
           .toMap(),
       'storeStatus': status,
       'status': status,
-      'createdAt': store.createdAt == null
+      'createdAt': ownedStore.createdAt == null
           ? FieldValue.serverTimestamp()
-          : store.toMap()['createdAt'],
+          : ownedStore.toMap()['createdAt'],
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     await _notificationService.create(
       type: 'store_profile_updated',
       title: 'Store profile saved',
       message:
-          '${store.name.isEmpty ? 'Store' : store.name} profile was saved.',
-      userId: store.ownerId,
+          '${ownedStore.name.isEmpty ? 'Store' : ownedStore.name} profile was saved.',
+      userId: ownedStore.ownerId,
       roleTarget: 'store_owner',
       relatedId: ref.id,
       relatedCollection: storesCollection,

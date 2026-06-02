@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 import 'firebase_service.dart';
@@ -253,18 +254,27 @@ class AuthService {
     String email,
     String password,
   ) async {
+    debugPrint('Email sign-up started for: $email');
     if (!_firebaseService.isReady) {
-      throw FirebaseAuthException(
+      final error = FirebaseAuthException(
         code: 'operation-not-allowed',
         message:
             'Firebase is not available. '
             'Run with --dart-define=OMW_USE_FIREBASE=true.',
       );
+      debugPrint('Email sign-up failed: ${error.code} ${error.message}');
+      throw error;
     }
-    await _firebaseService.auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      await _firebaseService.auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      debugPrint('Email sign-up success for: $email');
+    } on FirebaseAuthException catch (error) {
+      debugPrint('Email sign-up failed: ${error.code} ${error.message}');
+      rethrow;
+    }
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
@@ -283,16 +293,71 @@ class AuthService {
   }
 
   /// Send a verification email to the currently signed-in user.
+  ///
+  /// Throws [FirebaseAuthException] on failure so callers can surface the
+  /// real error to the user instead of silently dropping it.
+  ///
+  /// On web builds an [ActionCodeSettings] is included so Firebase redirects
+  /// the user back to the deployed app after clicking the verification link.
+  /// The redirect domain MUST be listed in Firebase Console →
+  /// Authentication → Settings → Authorized domains:
+  ///   • localhost
+  ///   • jasonmatar977-hub.github.io
   Future<void> sendEmailVerification() async {
-    if (!_firebaseService.isReady) return;
-    await _firebaseService.auth.currentUser?.sendEmailVerification();
+    debugPrint('Verification email sending started');
+    if (!_firebaseService.isReady) {
+      final error = FirebaseAuthException(
+        code: 'operation-not-allowed',
+        message:
+            'Firebase is not available. '
+            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+      );
+      debugPrint('Verification email failed: ${error.code} ${error.message}');
+      throw error;
+    }
+    final user = _firebaseService.auth.currentUser;
+    if (user == null) {
+      final error = FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No signed-in user is available for email verification.',
+      );
+      debugPrint('Verification email failed: ${error.code} ${error.message}');
+      throw error;
+    }
+    debugPrint(
+      '[OMW Auth] sendEmailVerification: dispatching to ${user.email}…',
+    );
+    // On web include a continue-URL so the email link redirects back to the
+    // correct app page after Firebase verifies the address.
+    // handleCodeInApp:false keeps standard email-verification behaviour —
+    // NOT passwordless / email-link sign-in.
+    final settings = kIsWeb
+        ? ActionCodeSettings(
+            url: 'https://jasonmatar977-hub.github.io/option_b/',
+            handleCodeInApp: false,
+          )
+        : null;
+    try {
+      await user.sendEmailVerification(settings);
+      debugPrint('Verification email sent');
+      debugPrint(
+        '[OMW Auth] sendEmailVerification: email dispatched OK for ${user.email}.',
+      );
+    } on FirebaseAuthException catch (error) {
+      debugPrint('Verification email failed: ${error.code} ${error.message}');
+      rethrow;
+    }
   }
 
   /// Force-reload the current user's Firebase profile so that
   /// [User.emailVerified] reflects the latest server state.
   Future<void> reloadUser() async {
     if (!_firebaseService.isReady) return;
+    debugPrint('[OMW Auth] reloadUser: reloading…');
     await _firebaseService.auth.currentUser?.reload();
+    debugPrint(
+      '[OMW Auth] reloadUser: emailVerified=${_firebaseService.auth.currentUser?.emailVerified}',
+    );
   }
 
   Future<void> signOut() async {
