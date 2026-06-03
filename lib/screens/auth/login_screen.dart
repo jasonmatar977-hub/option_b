@@ -853,6 +853,16 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     }
   }
 
+  void _showForgotPassword(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _ForgotPasswordDialog(
+        prefillEmail: _emailCtrl.text.trim(),
+        authService: _authService,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _emailCtrl.dispose();
@@ -944,6 +954,22 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     onPressed: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
+                ),
+              ),
+            ],
+            if (_isLogin) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => _showForgotPassword(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                  ),
+                  child: const Text('Forgot password?'),
                 ),
               ),
             ],
@@ -1177,5 +1203,149 @@ String _friendlyEmailAuthError(FirebaseAuthException e) {
         '[EmailAuth] Unhandled FirebaseAuthException: ${e.code} ${e.message}',
       );
       return 'Authentication failed: ${e.code}';
+  }
+}
+
+String _friendlyPasswordResetError(FirebaseAuthException e) {
+  return switch (e.code) {
+    'invalid-email' => 'Please enter a valid email address.',
+    'user-not-found' => 'No account found with this email address.',
+    'network-request-failed' => 'Network error. Please check your connection.',
+    'too-many-requests' => 'Too many attempts. Please wait and try again.',
+    _ => 'Could not send reset email: ${e.code}',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// _ForgotPasswordDialog
+// ---------------------------------------------------------------------------
+
+class _ForgotPasswordDialog extends StatefulWidget {
+  const _ForgotPasswordDialog({
+    required this.prefillEmail,
+    required this.authService,
+  });
+
+  final String prefillEmail;
+  final AuthService authService;
+
+  @override
+  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
+  late final TextEditingController _emailCtrl;
+  bool _loading = false;
+  bool _sent = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl = TextEditingController(text: widget.prefillEmail);
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      setState(() => _error = 'Please enter a valid email address.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await widget.authService.sendPasswordResetEmail(email);
+      if (mounted) setState(() => _sent = true);
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = _friendlyPasswordResetError(e);
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[ForgotPassword] Unexpected error: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Something went wrong. Please try again.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_sent) {
+      return AlertDialog(
+        title: const Text('Email sent'),
+        content: const Text(
+          'Password reset email sent. Please check your inbox and spam folder.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    }
+    return AlertDialog(
+      title: const Text('Reset password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Enter your account email and we will send you a link to reset your password.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            autofocus: widget.prefillEmail.isEmpty,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            _ErrorBox(message: _error!),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _send,
+          child: _loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Send reset email'),
+        ),
+      ],
+    );
   }
 }

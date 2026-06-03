@@ -50,6 +50,10 @@ class _OmwMainShellState extends State<OmwMainShell> {
       (widget.selectedRole == DemoRole.storeOwner ||
           (widget.availableRoles?.contains(DemoRole.storeOwner) ?? false));
 
+  bool get _isAdmin =>
+      widget.selectedRole == DemoRole.admin ||
+      (widget.availableRoles?.contains(DemoRole.admin) ?? false);
+
   String get _phone => widget.phoneNumber ?? '';
 
   void _onTabSelected(int index) {
@@ -178,6 +182,13 @@ class _OmwMainShellState extends State<OmwMainShell> {
 
     return Scaffold(
       body: IndexedStack(index: _tab, children: children),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).pushNamed('/admin'),
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              label: const Text('Admin'),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: _onTabSelected,

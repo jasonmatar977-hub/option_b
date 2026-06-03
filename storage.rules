@@ -1,0 +1,95 @@
+rules_version = '2';
+// OMW – On My Way  |  Firebase Storage Security Rules
+// Hardened: 2026-06-03
+//
+// HOW TO DEPLOY:
+//   firebase deploy --only storage --project swiftgo-b74fb
+//
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function hasProfileRole(role) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && role in userDoc().data.get('roles', []);
+    }
+
+    function isOwnerOrAdmin() {
+      return isSignedIn()
+        && (
+          request.auth.token.get('role', '') in ['owner', 'admin']
+          || hasProfileRole('owner')
+          || hasProfileRole('admin')
+        );
+    }
+
+    // Verifies the caller owns the store via the Firestore stores collection.
+    function ownsStore(storeId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/stores/$(storeId))
+        && firestore.get(/databases/(default)/documents/stores/$(storeId)).data.ownerId
+           == uid();
+    }
+
+    function isImageUpload() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function isDocumentUpload() {
+      return request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType == 'application/pdf');
+    }
+
+    // Store logo — public read; only store owner or admin may upload.
+    match /stores/{storeId}/logo/{fileName=**} {
+      allow read: if true;
+      allow write: if isImageUpload() && (ownsStore(storeId) || isOwnerOrAdmin());
+    }
+
+    // Store cover photo — public read; only store owner or admin may upload.
+    match /stores/{storeId}/cover/{fileName=**} {
+      allow read: if true;
+      allow write: if isImageUpload() && (ownsStore(storeId) || isOwnerOrAdmin());
+    }
+
+    // Product images — public read; only store owner or admin may upload.
+    match /stores/{storeId}/products/{productFolder}/{fileName=**} {
+      allow read: if true;
+      allow write: if isImageUpload() && (ownsStore(storeId) || isOwnerOrAdmin());
+    }
+
+    // Worker identity / onboarding documents.
+    // Worker uploads only to their own path; admin/owner may read for approval review.
+    // No broad "any signed-in user can write" — path-level ownership enforced.
+    match /workers/{workerId}/documents/{fileName=**} {
+      allow read: if isSignedIn()
+        && (uid() == workerId || isOwnerOrAdmin());
+      allow write: if isSignedIn()
+        && uid() == workerId
+        && isDocumentUpload();
+    }
+
+    // Deny everything not explicitly matched.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

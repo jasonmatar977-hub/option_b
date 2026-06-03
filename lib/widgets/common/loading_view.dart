@@ -64,7 +64,7 @@ class _FirebaseDriverNearbyQueue extends StatelessWidget {
       ),
       builder: (context, jobSnapshot) {
         return StreamBuilder<List<backend.MarketplaceOrder>>(
-          stream: marketplaceService.watchPendingMarketplaceOrders(),
+          stream: marketplaceService.watchAvailableDeliveryOrders(),
           builder: (context, orderSnapshot) {
             if (jobSnapshot.hasError || orderSnapshot.hasError) {
               return _StateMessage(

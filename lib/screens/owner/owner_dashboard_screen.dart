@@ -1027,6 +1027,63 @@ class _OwnerPayoutItemCard extends StatelessWidget {
 class _OwnerMarketplacePanel extends StatelessWidget {
   const _OwnerMarketplacePanel();
 
+  // ── Action helpers ────────────────────────────────────────────────────────
+
+  Future<void> _resetDelivery(BuildContext context, String orderId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Release worker?'),
+        content: const Text(
+          'Clears the assigned worker and returns the order to the delivery queue for a new courier.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await MarketplaceService().adminResetDelivery(orderId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Worker released — order back in delivery queue.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _cancelOrder(BuildContext context, String orderId) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _CancelOrderDialog(orderId: orderId),
+    );
+  }
+
+  Future<void> _assignWorker(BuildContext context, String orderId) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _WorkerPickerDialog(orderId: orderId),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<backend.MarketplaceOrder>>(
@@ -1034,31 +1091,54 @@ class _OwnerMarketplacePanel extends StatelessWidget {
       builder: (context, snapshot) {
         final orders =
             snapshot.data ?? MarketplaceService.localMarketplaceOrders;
+
         final pending = orders
-            .where(
-              (order) => order.status == backend.MarketplaceOrderStatus.pending,
-            )
+            .where((o) => o.status == backend.MarketplaceOrderStatus.pending)
             .length;
         final active = orders
             .where(
-              (order) =>
-                  order.status == backend.MarketplaceOrderStatus.accepted ||
-                  order.status == backend.MarketplaceOrderStatus.shopping ||
-                  order.status == backend.MarketplaceOrderStatus.pickedUp ||
-                  order.status == backend.MarketplaceOrderStatus.onTheWay,
+              (o) =>
+                  o.status == backend.MarketplaceOrderStatus.accepted ||
+                  o.status == backend.MarketplaceOrderStatus.shopping ||
+                  o.status == backend.MarketplaceOrderStatus.pickedUp ||
+                  o.status == backend.MarketplaceOrderStatus.onTheWay,
             )
             .length;
         final completed = orders
+            .where((o) => o.status == backend.MarketplaceOrderStatus.delivered)
+            .length;
+        final awaitingWorker = orders
             .where(
-              (order) =>
-                  order.status == backend.MarketplaceOrderStatus.delivered,
+              (o) =>
+                  o.deliveryStatus ==
+                  backend.MarketplaceDeliveryStatus.awaitingWorker,
             )
             .length;
-        final gross = orders.fold<double>(0, (sum, order) => sum + order.total);
+        final gross = orders.fold<double>(0, (sum, o) => sum + o.total);
         final deliveryRevenue = orders.fold<double>(
           0,
-          (sum, order) => sum + order.deliveryFee,
+          (sum, o) => sum + o.deliveryFee,
         );
+
+        // Active orders = those needing potential intervention
+        final activeOrders = orders
+            .where(
+              (o) =>
+                  o.status != backend.MarketplaceOrderStatus.delivered &&
+                  o.status != backend.MarketplaceOrderStatus.cancelled,
+            )
+            .toList();
+
+        // Recent completed/cancelled for reference
+        final doneOrders = orders
+            .where(
+              (o) =>
+                  o.status == backend.MarketplaceOrderStatus.delivered ||
+                  o.status == backend.MarketplaceOrderStatus.cancelled,
+            )
+            .take(5)
+            .toList();
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1068,41 +1148,115 @@ class _OwnerMarketplacePanel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Marketplace',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Firestore-ready marketplace order metrics.',
-                style: TextStyle(
-                  color: kMutedText,
-                  fontWeight: FontWeight.w700,
-                ),
+              // ── Header ──────────────────────────────────────────────────
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Marketplace Orders',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  if (awaitingWorker > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$awaitingWorker awaiting courier',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
+              // ── Metrics ─────────────────────────────────────────────────
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _MiniMetricChip(label: 'Orders', value: '${orders.length}'),
+                  _MiniMetricChip(label: 'Total', value: '${orders.length}'),
                   _MiniMetricChip(label: 'Pending', value: '$pending'),
                   _MiniMetricChip(label: 'Active', value: '$active'),
                   _MiniMetricChip(label: 'Completed', value: '$completed'),
+                  _MiniMetricChip(
+                    label: 'Awaiting courier',
+                    value: '$awaitingWorker',
+                  ),
                   _MiniMetricChip(
                     label: 'Gross',
                     value: '\$${gross.toStringAsFixed(0)}',
                   ),
                   _MiniMetricChip(
-                    label: 'Delivery',
+                    label: 'Delivery fees',
                     value: '\$${deliveryRevenue.toStringAsFixed(0)}',
                   ),
                 ],
               ),
+              const SizedBox(height: 18),
+
+              // ── Active orders (with intervention controls) ───────────────
+              Row(
+                children: [
+                  Text(
+                    'Active orders (${activeOrders.length})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (activeOrders.isEmpty)
+                const Text(
+                  'No active orders right now.',
+                  style: TextStyle(
+                    color: kMutedText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              else
+                ...activeOrders.map(
+                  (order) => _AdminOrderCard(
+                    order: order,
+                    onResetDelivery: () => _resetDelivery(context, order.id),
+                    onCancelOrder: () => _cancelOrder(context, order.id),
+                    onAssignWorker: () => _assignWorker(context, order.id),
+                  ),
+                ),
+
+              // ── Recent completed ─────────────────────────────────────────
+              if (doneOrders.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                const Text(
+                  'Recent completed / cancelled',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...doneOrders.map(
+                  (order) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _AdminOrderCompactRow(order: order),
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -1111,8 +1265,531 @@ class _OwnerMarketplacePanel extends StatelessWidget {
   }
 }
 
+// ── Intervention order card ──────────────────────────────────────────────────
+
+class _AdminOrderCard extends StatelessWidget {
+  const _AdminOrderCard({
+    required this.order,
+    required this.onResetDelivery,
+    required this.onCancelOrder,
+    required this.onAssignWorker,
+  });
+
+  final backend.MarketplaceOrder order;
+  final VoidCallback onResetDelivery;
+  final VoidCallback onCancelOrder;
+  final VoidCallback onAssignWorker;
+
+  String get _shortId {
+    final id = order.id;
+    return id.length > 8 ? '#${id.substring(0, 8).toUpperCase()}' : '#$id';
+  }
+
+  bool get _hasWorker => order.assignedWorkerId?.isNotEmpty == true;
+
+  bool get _isAwaitingWorker =>
+      order.deliveryStatus == backend.MarketplaceDeliveryStatus.awaitingWorker;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Order info ─────────────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  order.storeName.isEmpty ? order.storeId : order.storeName,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                '\$${order.total.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '$_shortId  •  ${order.customerName.isEmpty ? order.customerPhone : order.customerName}  •  ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          // ── Status badges ──────────────────────────────────────────────
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _StatusChip(label: order.status.name, status: order.status.name),
+              if (order.deliveryStatus.isNotEmpty &&
+                  order.deliveryStatus != 'none')
+                _StatusChip(
+                  label: order.deliveryStatus,
+                  status: order.deliveryStatus == 'awaitingWorker'
+                      ? 'pending'
+                      : order.deliveryStatus,
+                ),
+              if (_hasWorker)
+                _StatusChip(
+                  label: order.assignedWorkerName ?? order.assignedWorkerId!,
+                  status: 'approved',
+                ),
+            ],
+          ),
+          if (order.deliveryLabel.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.place_outlined, size: 13, color: kDeepGold),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    order.deliveryLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          // ── Action buttons ─────────────────────────────────────────────
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (_isAwaitingWorker)
+                OutlinedButton.icon(
+                  onPressed: onAssignWorker,
+                  icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
+                  label: const Text('Assign worker'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kAccentBlue,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              if (_hasWorker)
+                OutlinedButton.icon(
+                  onPressed: onResetDelivery,
+                  icon: const Icon(Icons.refresh_outlined, size: 16),
+                  label: const Text('Release worker'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange.shade800,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: onCancelOrder,
+                icon: const Icon(Icons.cancel_outlined, size: 16),
+                label: const Text('Cancel order'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red.shade700,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Compact row for completed/cancelled orders ───────────────────────────────
+
+class _AdminOrderCompactRow extends StatelessWidget {
+  const _AdminOrderCompactRow({required this.order});
+
+  final backend.MarketplaceOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCancelled =
+        order.status == backend.MarketplaceOrderStatus.cancelled;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isCancelled ? Icons.cancel_outlined : Icons.check_circle_outline,
+            color: isCancelled ? Colors.red.shade300 : Colors.green.shade300,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${order.storeName.isEmpty ? order.storeId : order.storeName}  •  ${order.itemCount} items',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: kMutedText,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '\$${order.total.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Cancel-order dialog ──────────────────────────────────────────────────────
+
+class _CancelOrderDialog extends StatefulWidget {
+  const _CancelOrderDialog({required this.orderId});
+
+  final String orderId;
+
+  @override
+  State<_CancelOrderDialog> createState() => _CancelOrderDialogState();
+}
+
+class _CancelOrderDialogState extends State<_CancelOrderDialog> {
+  final _reasonCtrl = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    setState(() => _loading = true);
+    try {
+      await MarketplaceService().adminCancelOrder(
+        widget.orderId,
+        reason: _reasonCtrl.text.trim().isEmpty
+            ? null
+            : _reasonCtrl.text.trim(),
+      );
+      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order cancelled and inventory restored.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cancel order?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'This will cancel the order and restore product inventory.',
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _reasonCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Reason (optional)',
+              hintText: 'Store closed, no workers available…',
+              isDense: true,
+            ),
+            maxLines: 2,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Keep order'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _confirm,
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
+          ),
+          child: _loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Cancel order'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Worker picker dialog ─────────────────────────────────────────────────────
+
+class _WorkerPickerDialog extends StatefulWidget {
+  const _WorkerPickerDialog({required this.orderId});
+
+  final String orderId;
+
+  @override
+  State<_WorkerPickerDialog> createState() => _WorkerPickerDialogState();
+}
+
+class _WorkerPickerDialogState extends State<_WorkerPickerDialog> {
+  backend.WorkerProfile? _selected;
+  bool _loading = false;
+
+  Future<void> _assign() async {
+    final worker = _selected;
+    if (worker == null) return;
+    setState(() => _loading = true);
+    try {
+      await MarketplaceService().adminAssignWorker(
+        widget.orderId,
+        worker.userId,
+        worker.fullName,
+        worker.phone,
+      );
+      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Assigned to ${worker.fullName.isEmpty ? worker.userId : worker.fullName}.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Assign worker'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: StreamBuilder<List<backend.WorkerProfile>>(
+          stream: WorkerService().watchApprovedWorkers(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final workers = snapshot.data ?? const [];
+            if (workers.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('No approved workers found.'),
+              );
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: workers.length,
+                itemBuilder: (ctx, i) {
+                  final w = workers[i];
+                  final isSelected = _selected == w;
+                  return ListTile(
+                    dense: true,
+                    onTap: _loading
+                        ? null
+                        : () => setState(() => _selected = w),
+                    selected: isSelected,
+                    selectedTileColor: kAccentBlue.withValues(alpha: 0.08),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    leading: isSelected
+                        ? const Icon(Icons.check_circle, color: kAccentBlue)
+                        : const Icon(
+                            Icons.radio_button_unchecked,
+                            color: Colors.grey,
+                          ),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            w.fullName.isEmpty ? w.userId : w.fullName,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        if (w.isOnline)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'Online',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      w.phone.isEmpty ? 'No phone' : w.phone,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading || _selected == null ? null : _assign,
+          child: _loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Assign'),
+        ),
+      ],
+    );
+  }
+}
+
 class _OwnerStoreHealthPanel extends StatelessWidget {
   const _OwnerStoreHealthPanel();
+
+  Future<void> _setStatus(
+    BuildContext context,
+    StoreCrmService service,
+    backend.MarketplaceStore store,
+    String status, {
+    String? reason,
+  }) async {
+    try {
+      await service.updateStoreStatus(
+        storeId: store.id,
+        status: status,
+        adminId: AuthService().currentUser?.uid,
+        rejectionReason: reason,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Store marked $status.')));
+      }
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[Owner] Store status update failed: ${error.code} ${error.message}',
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update store: ${error.code}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectStore(
+    BuildContext context,
+    StoreCrmService service,
+    backend.MarketplaceStore store,
+  ) async {
+    final ctrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject store'),
+        content: TextField(
+          controller: ctrl,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Rejection reason',
+            hintText: 'Explain what the store owner should fix.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null) return;
+    if (!context.mounted) return;
+    await _setStatus(context, service, store, 'rejected', reason: reason);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1127,13 +1804,23 @@ class _OwnerStoreHealthPanel extends StatelessWidget {
             final products =
                 productSnapshot.data ?? const <backend.MarketplaceProduct>[];
             final pending = stores
-                .where((store) => store.status == 'pending_approval')
+                .where(
+                  (store) =>
+                      store.status == 'pending' ||
+                      store.status == 'pending_approval',
+                )
                 .length;
             final active = stores
-                .where((store) => store.status == 'active')
+                .where(
+                  (store) =>
+                      store.status == 'approved' || store.status == 'active',
+                )
                 .length;
-            final paused = stores
-                .where((store) => store.status == 'paused')
+            final rejected = stores
+                .where((store) => store.status == 'rejected')
+                .length;
+            final suspended = stores
+                .where((store) => store.status == 'suspended')
                 .length;
             final lowStock = products
                 .where((product) => product.stockStatus == 'low_stock')
@@ -1165,8 +1852,15 @@ class _OwnerStoreHealthPanel extends StatelessWidget {
                         value: stores.length,
                       ),
                       _OwnerRequestCountChip(label: 'Pending', value: pending),
-                      _OwnerRequestCountChip(label: 'Active', value: active),
-                      _OwnerRequestCountChip(label: 'Paused', value: paused),
+                      _OwnerRequestCountChip(label: 'Approved', value: active),
+                      _OwnerRequestCountChip(
+                        label: 'Rejected',
+                        value: rejected,
+                      ),
+                      _OwnerRequestCountChip(
+                        label: 'Suspended',
+                        value: suspended,
+                      ),
                       _OwnerRequestCountChip(
                         label: 'Low stock',
                         value: lowStock,
@@ -1183,11 +1877,22 @@ class _OwnerStoreHealthPanel extends StatelessWidget {
                       .map(
                         (store) => ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const CircleAvatar(
-                            backgroundColor: kAccentYellow,
-                            child: Icon(
-                              Icons.storefront_outlined,
-                              color: kBrandBlack,
+                          leading: OmwNetworkImage(
+                            url: store.imageUrl,
+                            width: 46,
+                            height: 46,
+                            borderRadius: 12,
+                            placeholder: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: kAccentYellow.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.storefront_outlined,
+                                color: kDeepGold,
+                              ),
                             ),
                           ),
                           title: Text(
@@ -1195,25 +1900,33 @@ class _OwnerStoreHealthPanel extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                           subtitle: Text(
-                            '${store.status} - ${store.isOpen ? 'Open' : 'Closed'} - ${store.address}',
+                            '${store.status} - ${backend.marketplaceCategoryLabel(store.category)} - ${store.address}',
                           ),
                           trailing: Wrap(
                             spacing: 6,
                             children: [
                               IconButton(
-                                onPressed: () => service.updateStoreStatus(
-                                  storeId: store.id,
-                                  status: 'active',
-                                  adminId: AuthService().currentUser?.uid,
+                                onPressed: () => _setStatus(
+                                  context,
+                                  service,
+                                  store,
+                                  'approved',
                                 ),
                                 icon: const Icon(Icons.check_circle_outline),
                                 tooltip: 'Approve',
                               ),
                               IconButton(
-                                onPressed: () => service.updateStoreStatus(
-                                  storeId: store.id,
-                                  status: 'suspended',
-                                  adminId: AuthService().currentUser?.uid,
+                                onPressed: () =>
+                                    _rejectStore(context, service, store),
+                                icon: const Icon(Icons.cancel_outlined),
+                                tooltip: 'Reject',
+                              ),
+                              IconButton(
+                                onPressed: () => _setStatus(
+                                  context,
+                                  service,
+                                  store,
+                                  'suspended',
                                 ),
                                 icon: const Icon(Icons.block),
                                 tooltip: 'Suspend',

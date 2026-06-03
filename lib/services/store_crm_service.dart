@@ -82,6 +82,7 @@ class StoreCrmService {
     }
     return _stores
         .where('ownerId', isEqualTo: ownerId)
+        .limit(5)
         .snapshots()
         .map(
           (snapshot) =>
@@ -95,6 +96,7 @@ class StoreCrmService {
     }
     return _stores
         .orderBy('storeName')
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) =>
@@ -133,10 +135,34 @@ class StoreCrmService {
         message: 'No authenticated user is available for store profile save.',
       );
     }
-    final ownedStore = store.copyWith(ownerId: currentUid);
+    final normalizedCategory = normalizeMarketplaceCategory(store.category);
+    final ownedStore = store.copyWith(
+      ownerId: currentUid,
+      category: normalizedCategory,
+      categories: [normalizedCategory],
+      openingHours: store.openingHoursLabel.isEmpty
+          ? marketplaceHoursLabel(
+              daysOpen: store.daysOpen,
+              openTime: store.openTime,
+              closeTime: store.closeTime,
+            )
+          : store.openingHoursLabel,
+      openingHoursLabel: store.openingHoursLabel.isEmpty
+          ? marketplaceHoursLabel(
+              daysOpen: store.daysOpen,
+              openTime: store.openTime,
+              closeTime: store.closeTime,
+            )
+          : store.openingHoursLabel,
+      addressLabel: store.addressLabel.isEmpty
+          ? store.address
+          : store.addressLabel,
+    );
     final ref = store.id.isEmpty ? _stores.doc() : _stores.doc(store.id);
     final status = ownedStore.status == 'pending_approval'
-        ? 'active'
+        ? 'pending'
+        : ownedStore.status.trim().isEmpty
+        ? 'pending'
         : ownedStore.status;
     await ref.set({
       ...ownedStore
@@ -221,11 +247,13 @@ class StoreCrmService {
     await _stores.doc(storeId).set({
       'storeStatus': status,
       'status': status,
-      'rejectionReason': rejectionReason,
-      if (status == 'active') ...{
+      'rejectionReason': status == 'rejected' ? rejectionReason : null,
+      if (status == 'approved' || status == 'active') ...{
         'approvedAt': FieldValue.serverTimestamp(),
         'approvedByAdminId': adminId,
       },
+      if (status == 'rejected') 'rejectedAt': FieldValue.serverTimestamp(),
+      if (status == 'suspended') 'suspendedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     await _notificationService.create(
@@ -266,6 +294,7 @@ class StoreCrmService {
     return _categories
         .where('storeId', isEqualTo: storeId)
         .orderBy('sortOrder')
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -317,6 +346,7 @@ class StoreCrmService {
     }
     return _products
         .where('storeId', isEqualTo: storeId)
+        .limit(200)
         .snapshots()
         .map(
           (snapshot) =>
@@ -334,10 +364,13 @@ class StoreCrmService {
             .toList(),
       );
     }
-    return _products.snapshots().map(
-      (snapshot) =>
-          snapshot.docs.map(MarketplaceProduct.fromFirestore).toList(),
-    );
+    return _products
+        .limit(100)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(MarketplaceProduct.fromFirestore).toList(),
+        );
   }
 
   Future<String?> upsertProduct(MarketplaceProduct product) async {
@@ -364,8 +397,22 @@ class StoreCrmService {
     final ref = product.id.isEmpty
         ? _products.doc()
         : _products.doc(product.id);
+    final currentUid = _firebaseService.auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unauthenticated',
+        message: 'No authenticated user is available for product save.',
+      );
+    }
     final normalized = product.copyWith(
       id: ref.id,
+      storeOwnerId: currentUid,
+      category: normalizeMarketplaceCategory(product.category),
+      subcategory: normalizeMarketplaceSubcategory(
+        product.category,
+        product.subcategory,
+      ),
       isAvailable: product.stockQuantity <= 0 ? false : product.isAvailable,
       updatedAt: DateTime.now(),
       createdAt: product.createdAt ?? DateTime.now(),
@@ -434,6 +481,7 @@ class StoreCrmService {
         .collection(MarketplaceService.ordersCollection)
         .where('storeId', isEqualTo: storeId)
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) =>
@@ -489,6 +537,7 @@ class StoreCrmService {
     return _expenses
         .where('storeId', isEqualTo: storeId)
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

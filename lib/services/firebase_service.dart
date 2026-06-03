@@ -43,6 +43,16 @@ class FirebaseService {
       _initialized = true;
       _failure = null;
       debugPrint('On My Way Firebase initialized. Using backend services.');
+
+      // TODO(security): Enable Firebase App Check before public launch.
+      // Steps:
+      //   1. Firebase Console → App Check → Register app
+      //   2. For web: choose reCAPTCHA Enterprise (preferred) or reCAPTCHA v3
+      //   3. Add the site key to AppConfig (via --dart-define=OMW_RECAPTCHA_SITE_KEY=...)
+      //   4. Add firebase_app_check: ^0.x.x to pubspec.yaml
+      //   5. Call FirebaseAppCheck.instance.activate(...) here after initializeApp
+      //   6. Enforce App Check in Firebase Console for Firestore, Storage, Functions
+      //   See docs/SECURITY_CHECKLIST.md for full steps.
     } catch (error, stackTrace) {
       _initialized = false;
       _failure = error;

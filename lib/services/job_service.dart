@@ -76,6 +76,7 @@ class JobService {
         .collection(collectionName)
         .where('customerId', isEqualTo: customerId)
         .orderBy('createdAt', descending: true)
+        .limit(20)
         .snapshots()
         .map(_jobsFromSnapshot);
   }
@@ -88,6 +89,7 @@ class JobService {
         .collection(collectionName)
         .where('assignedWorkerId', isEqualTo: workerId)
         .orderBy('createdAt', descending: true)
+        .limit(20)
         .snapshots()
         .map(_jobsFromSnapshot);
   }
@@ -250,6 +252,7 @@ class JobService {
         .collection(collectionName)
         .where('status', isEqualTo: JobStatus.pending.name)
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .map(_jobsFromSnapshot);
   }
@@ -277,6 +280,7 @@ class JobService {
     return _firebaseService.firestore
         .collection(collectionName)
         .orderBy('createdAt', descending: true)
+        .limit(100)
         .snapshots()
         .map(_jobsFromSnapshot);
   }

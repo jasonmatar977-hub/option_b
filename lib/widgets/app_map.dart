@@ -54,6 +54,7 @@ class AppMap extends StatefulWidget {
     this.offerMarkers = const [],
     this.selectedMarkerId,
     this.onMarkerTap,
+    this.onMapTap,
     this.routePoints = const [],
     this.cameraUpdateKey = 0,
     this.height,
@@ -71,6 +72,7 @@ class AppMap extends StatefulWidget {
   final List<DemoMapMarker> offerMarkers;
   final String? selectedMarkerId;
   final ValueChanged<String>? onMarkerTap;
+  final ValueChanged<DemoMapPoint>? onMapTap;
   final List<DemoMapPoint> routePoints;
   final int cameraUpdateKey;
   final double? height;
@@ -246,7 +248,9 @@ class _AppMapState extends State<AppMap> {
         }
         _moveCameraToVisibleMarkers();
       },
-      onTap: (_) {},
+      onTap: (latLng) => widget.onMapTap?.call(
+        DemoMapPoint(latLng.latitude, latLng.longitude),
+      ),
     );
   }
 

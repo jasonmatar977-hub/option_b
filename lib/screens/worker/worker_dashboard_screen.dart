@@ -1401,7 +1401,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
     return MarketplaceService.localMarketplaceOrders
         .where(
-          (order) => order.status == backend.MarketplaceOrderStatus.pending,
+          (order) =>
+              order.status == backend.MarketplaceOrderStatus.pickedUp &&
+              (order.deliveryStatus.isEmpty ||
+                  order.deliveryStatus ==
+                      backend.MarketplaceDeliveryStatus.awaitingWorker) &&
+              order.assignedWorkerId == null,
         )
         .map((order) {
           final store = MarketplaceService.sampleStores.firstWhere(
@@ -1486,24 +1491,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   String get _jobStatus {
-    switch (_jobStep) {
-      case 1:
-        return _activeMarketplaceJob == null
-            ? 'Your OMW driver accepted the request'
-            : 'Marketplace order accepted';
-      case 2:
-        return _activeMarketplaceJob == null
-            ? 'OMW driver on the way'
-            : 'Heading to store';
-      case 3:
-        return _activeMarketplaceJob == null
-            ? 'Arrived at pickup'
-            : 'Shopping/preparing';
-      case 4:
-        return _activeMarketplaceJob == null ? 'In progress' : 'On the way';
-      default:
-        return _activeMarketplaceJob == null ? 'Completed' : 'Delivered';
+    if (_activeMarketplaceJob != null) {
+      return switch (_jobStep) {
+        1 => 'Delivery accepted — heading to store',
+        2 => 'At store — collecting the order',
+        3 => 'Order picked up — heading to customer',
+        4 => 'On the way to customer',
+        _ => 'Delivered',
+      };
     }
+    return switch (_jobStep) {
+      1 => 'Your OMW driver accepted the request',
+      2 => 'OMW driver on the way',
+      3 => 'Arrived at pickup',
+      4 => 'In progress',
+      _ => 'Completed',
+    };
   }
 
   Future<void> _useDriverLocation() async {
@@ -1855,7 +1858,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final workerName = _firebaseWorkerName();
     final workerPhone = _firebaseWorkerPhone();
     try {
-      await _marketplaceService.acceptMarketplaceOrder(
+      await _marketplaceService.acceptDeliveryOrder(
         job.order.id,
         workerId,
         workerName: workerName,
@@ -2207,23 +2210,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
     setState(() => _jobStep++);
     if (_activeMarketplaceJob != null && _jobStep < 5) {
-      final nextStatus = switch (_jobStep) {
-        1 => backend.MarketplaceOrderStatus.accepted,
-        2 => backend.MarketplaceOrderStatus.shopping,
-        3 => backend.MarketplaceOrderStatus.pickedUp,
-        _ => backend.MarketplaceOrderStatus.onTheWay,
-      };
-      await _marketplaceService.updateMarketplaceOrderStatus(
-        _activeMarketplaceJob!.order.id,
-        nextStatus,
-      );
+      // step 2: heading to store (no Firestore update)
+      // step 3: worker picked up order from store
+      // step 4: worker on the way to customer
+      if (_jobStep == 3) {
+        await _marketplaceService.updateWorkerDeliveryStatus(
+          _activeMarketplaceJob!.order.id,
+          backend.MarketplaceDeliveryStatus.pickedUp,
+        );
+      } else if (_jobStep == 4) {
+        await _marketplaceService.updateWorkerDeliveryStatus(
+          _activeMarketplaceJob!.order.id,
+          backend.MarketplaceDeliveryStatus.onTheWay,
+        );
+      }
       return;
     }
     if (_jobStep >= 5) {
       if (_activeMarketplaceJob != null) {
         try {
-          await _marketplaceService.completeMarketplaceOrder(
+          await _marketplaceService.updateWorkerDeliveryStatus(
             _activeMarketplaceJob!.order.id,
+            backend.MarketplaceDeliveryStatus.delivered,
           );
           final completedOffer = OfferPayload(
             id: _activeMarketplaceJob!.order.id,

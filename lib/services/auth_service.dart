@@ -254,7 +254,9 @@ class AuthService {
     String email,
     String password,
   ) async {
-    debugPrint('Email sign-up started for: $email');
+    if (kDebugMode) {
+      debugPrint('Email sign-up started');
+    }
     if (!_firebaseService.isReady) {
       final error = FirebaseAuthException(
         code: 'operation-not-allowed',
@@ -270,7 +272,9 @@ class AuthService {
         email: email,
         password: password,
       );
-      debugPrint('Email sign-up success for: $email');
+      if (kDebugMode) {
+        debugPrint('Email sign-up success');
+      }
     } on FirebaseAuthException catch (error) {
       debugPrint('Email sign-up failed: ${error.code} ${error.message}');
       rethrow;
@@ -324,9 +328,9 @@ class AuthService {
       debugPrint('Verification email failed: ${error.code} ${error.message}');
       throw error;
     }
-    debugPrint(
-      '[OMW Auth] sendEmailVerification: dispatching to ${user.email}…',
-    );
+    if (kDebugMode) {
+      debugPrint('[OMW Auth] sendEmailVerification: dispatching…');
+    }
     // On web include a continue-URL so the email link redirects back to the
     // correct app page after Firebase verifies the address.
     // handleCodeInApp:false keeps standard email-verification behaviour —
@@ -340,11 +344,55 @@ class AuthService {
     try {
       await user.sendEmailVerification(settings);
       debugPrint('Verification email sent');
-      debugPrint(
-        '[OMW Auth] sendEmailVerification: email dispatched OK for ${user.email}.',
-      );
+      if (kDebugMode) {
+        debugPrint('[OMW Auth] sendEmailVerification: dispatched OK.');
+      }
     } on FirebaseAuthException catch (error) {
       debugPrint('Verification email failed: ${error.code} ${error.message}');
+      rethrow;
+    }
+  }
+
+  /// Send a password-reset email to [email].
+  ///
+  /// Uses [ActionCodeSettings] with the deployed app URL so the reset link
+  /// redirects back to the correct domain after the user sets a new password.
+  /// handleCodeInApp:false keeps standard reset behaviour — not email-link
+  /// sign-in.
+  Future<void> sendPasswordResetEmail(String email) async {
+    if (kDebugMode) {
+      debugPrint('[OMW Auth] sendPasswordResetEmail: starting…');
+    }
+    if (!_firebaseService.isReady) {
+      final error = FirebaseAuthException(
+        code: 'operation-not-allowed',
+        message:
+            'Firebase is not available. '
+            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+      );
+      debugPrint(
+        '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+      );
+      throw error;
+    }
+    final settings = kIsWeb
+        ? ActionCodeSettings(
+            url: 'https://jasonmatar977-hub.github.io/option_b/',
+            handleCodeInApp: false,
+          )
+        : null;
+    try {
+      await _firebaseService.auth.sendPasswordResetEmail(
+        email: email,
+        actionCodeSettings: settings,
+      );
+      if (kDebugMode) {
+        debugPrint('[OMW Auth] sendPasswordResetEmail: sent OK.');
+      }
+    } on FirebaseAuthException catch (error) {
+      debugPrint(
+        '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+      );
       rethrow;
     }
   }

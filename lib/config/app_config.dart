@@ -49,6 +49,26 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // Comma-separated lower-case admin bootstrap emails.
+  // Example: --dart-define=OMW_ADMIN_EMAILS=owner@example.com,admin@example.com
+  static const String adminEmailsCsv = String.fromEnvironment(
+    'OMW_ADMIN_EMAILS',
+    defaultValue: '',
+  );
+
+  static List<String> get adminEmails => adminEmailsCsv
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .where((email) => email.isNotEmpty)
+      .toList(growable: false);
+
+  static bool isAdminEmail(String? email) {
+    final normalized = email?.trim().toLowerCase();
+    return normalized != null &&
+        normalized.isNotEmpty &&
+        adminEmails.contains(normalized);
+  }
+
   static bool get hasGoogleMapsApiKey => googleMapsApiKey.isNotEmpty;
   static double platformCommissionFor(num gross) => gross * commissionRate;
   static double workerPayoutFor(num gross) => gross * (1 - commissionRate);

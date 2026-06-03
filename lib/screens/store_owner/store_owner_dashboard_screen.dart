@@ -8,10 +8,20 @@ InputDecoration _storeOwnerInputDecoration({
   return InputDecoration(
     labelText: label,
     hintText: hint,
+    isDense: false,
+    floatingLabelBehavior: FloatingLabelBehavior.always,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
     filled: true,
     fillColor: Colors.white,
     prefixIcon: icon == null ? null : Icon(icon, color: kDeepGold),
-    labelStyle: TextStyle(color: Colors.grey.shade700),
+    labelStyle: const TextStyle(
+      color: kBrandBlack,
+      fontWeight: FontWeight.w800,
+    ),
+    floatingLabelStyle: const TextStyle(
+      color: kAccentYellow,
+      fontWeight: FontWeight.w900,
+    ),
     hintStyle: TextStyle(color: Colors.grey.shade500),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -37,6 +47,29 @@ const TextStyle _storeOwnerInputTextStyle = TextStyle(
   fontWeight: FontWeight.w700,
 );
 
+const List<String> _storeTimeOptions = [
+  '06:00',
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
+  '22:00',
+  '23:00',
+];
+
+const DemoMapPoint _defaultStorePoint = DemoMapPoint(33.8938, 35.5018);
+
 class StoreOwnerDashboardScreen extends StatefulWidget {
   const StoreOwnerDashboardScreen({
     super.key,
@@ -54,6 +87,7 @@ class StoreOwnerDashboardScreen extends StatefulWidget {
 
 class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
   final StoreCrmService _service = StoreCrmService();
+  bool _editingProfile = false;
 
   String get _ownerId => AuthService().currentUser?.uid ?? 'local-store-owner';
 
@@ -64,6 +98,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
       builder: (context, storeSnapshot) {
         final stores = storeSnapshot.data ?? const <backend.MarketplaceStore>[];
         final store = stores.isEmpty ? null : stores.first;
+        final status = store?.status ?? 'not_created';
+        final approved = status == 'approved' || status == 'active';
+        final showProfileForm =
+            store == null || _editingProfile || status == 'rejected';
         return Scaffold(
           appBar: AppBar(
             title: const Text('Store Owner Dashboard'),
@@ -80,23 +118,36 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _StoreProfileCard(
-                  ownerId: _ownerId,
-                  userPhone: widget.userPhone,
-                  store: store,
-                  onSave: _saveStoreProfile,
-                  onToggleOpen: store == null
-                      ? null
-                      : (value) => _service.setStoreOpen(store.id, value),
-                ),
+                if (showProfileForm) ...[
+                  _StoreProfileCard(
+                    ownerId: _ownerId,
+                    userPhone: widget.userPhone,
+                    store: store,
+                    onSave: _saveStoreProfile,
+                    onToggleOpen: store == null
+                        ? null
+                        : (value) => _service.setStoreOpen(store.id, value),
+                  ),
+                  const SizedBox(height: 16),
+                  if (store == null)
+                    const _StateMessage(
+                      icon: Icons.storefront_outlined,
+                      text:
+                          'Create your store profile and submit it for admin approval.',
+                    ),
+                ] else ...[
+                  _StoreOwnerHomeCard(
+                    store: store,
+                    onEditProfile: () => setState(() => _editingProfile = true),
+                  ),
+                ],
                 const SizedBox(height: 16),
-                if (store == null)
-                  const _StateMessage(
-                    icon: Icons.storefront_outlined,
-                    text:
-                        'Create your store profile to start managing products, inventory, orders, and expenses.',
+                if (store != null && !approved)
+                  _StoreApprovalStatusCard(
+                    store: store,
+                    onEditProfile: () => setState(() => _editingProfile = true),
                   )
-                else
+                else if (store != null && approved)
                   _StoreCrmBody(store: store, service: _service),
               ],
             ),
@@ -110,9 +161,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
     try {
       await _service.upsertStore(store);
       if (!mounted) return;
+      setState(() => _editingProfile = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Store profile saved.')));
+      ).showSnackBar(const SnackBar(content: Text('Store profile submitted.')));
     } on FirebaseException catch (error) {
       debugPrint(
         '[StoreOwner] Save store profile FirebaseException: '
@@ -175,8 +227,8 @@ class _StoreImageUploadCell extends StatelessWidget {
                 child: imageUrl.isNotEmpty
                     ? Image.network(
                         imageUrl,
-                        width: 48,
-                        height: 48,
+                        width: 64,
+                        height: 64,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => _placeholder,
                       )
@@ -218,8 +270,8 @@ class _StoreImageUploadCell extends StatelessWidget {
   }
 
   Widget get _placeholder => Container(
-    width: 48,
-    height: 48,
+    width: 64,
+    height: 64,
     decoration: BoxDecoration(
       color: Colors.white.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(10),
@@ -227,6 +279,207 @@ class _StoreImageUploadCell extends StatelessWidget {
     ),
     child: Icon(placeholder, color: Colors.white38, size: 22),
   );
+}
+
+class _StoreOwnerHomeCard extends StatelessWidget {
+  const _StoreOwnerHomeCard({required this.store, required this.onEditProfile});
+
+  final backend.MarketplaceStore store;
+  final VoidCallback onEditProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kBrandBlack,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              OmwNetworkImage(
+                url: store.imageUrl,
+                width: 58,
+                height: 58,
+                borderRadius: 14,
+                placeholder: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: kAccentYellow.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.storefront_outlined,
+                    color: kAccentYellow,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      store.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${backend.marketplaceCategoryLabel(store.category)} - ${store.isOpen ? 'Open' : 'Closed'}',
+                      style: const TextStyle(
+                        color: kMutedText,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _StoreOwnerSummaryChip(label: 'Status', value: store.status),
+              _StoreOwnerSummaryChip(
+                label: 'Hours',
+                value: store.openingHoursLabel.isEmpty
+                    ? 'Not set'
+                    : store.openingHoursLabel,
+              ),
+              _StoreOwnerSummaryChip(
+                label: 'Location',
+                value: store.address.isEmpty ? 'Not set' : store.address,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: onEditProfile,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit Profile'),
+            style: FilledButton.styleFrom(
+              backgroundColor: kAccentYellow,
+              foregroundColor: kBrandBlack,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoreApprovalStatusCard extends StatelessWidget {
+  const _StoreApprovalStatusCard({
+    required this.store,
+    required this.onEditProfile,
+  });
+
+  final backend.MarketplaceStore store;
+  final VoidCallback onEditProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final rejected = store.status == 'rejected';
+    final suspended = store.status == 'suspended';
+    final title = rejected
+        ? 'Store profile rejected'
+        : suspended
+        ? 'Store suspended'
+        : 'Store profile pending approval';
+    final text = rejected
+        ? 'Review the reason, edit your profile, and resubmit for approval.'
+        : suspended
+        ? 'Your store is suspended. Contact OMW admin before making changes.'
+        : 'Your store profile is pending admin approval.';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: rejected || suspended ? Colors.red.shade200 : kAccentYellow,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                rejected || suspended
+                    ? Icons.error_outline
+                    : Icons.hourglass_top_outlined,
+                color: rejected || suspended ? Colors.red.shade700 : kDeepGold,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (store.rejectionReason?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Reason: ${store.rejectionReason}',
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: suspended ? null : onEditProfile,
+            icon: const Icon(Icons.edit_outlined),
+            label: Text(rejected ? 'Edit and resubmit' : 'Edit profile'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoreOwnerSummaryChip extends StatelessWidget {
+  const _StoreOwnerSummaryChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
 }
 
 class _StoreCrmBody extends StatelessWidget {
@@ -315,9 +568,21 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
   late final TextEditingController _descriptionCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _addressCtrl;
-  late final TextEditingController _hoursCtrl;
+  final GooglePlacesService _placesService = const GooglePlacesService();
   bool _delivery = true;
   bool _pickup = true;
+  bool _freeDeliveryEnabled = false;
+  bool _firstOrderDealEnabled = false;
+  bool _discountEnabled = false;
+  final TextEditingController _discountLabelCtrl = TextEditingController();
+  String _category = backend.marketplaceCategoryOptions.first.value;
+  List<String> _daysOpen = const ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  String _openTime = '09:00';
+  String _closeTime = '20:00';
+  String _placeId = '';
+  String _cityArea = '';
+  DemoMapPoint? _storePoint;
+  List<PlaceSuggestion> _addressSuggestions = const [];
   String _logoUrl = '';
   String _coverUrl = '';
   bool _uploadingLogo = false;
@@ -333,9 +598,13 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
       text: store?.phone.isNotEmpty == true ? store!.phone : widget.userPhone,
     );
     _addressCtrl = TextEditingController(text: store?.address ?? '');
-    _hoursCtrl = TextEditingController(text: store?.openingHours ?? '');
+    _hydrateStructuredState(store);
     _delivery = store?.deliveryAvailable ?? true;
     _pickup = store?.pickupAvailable ?? true;
+    _freeDeliveryEnabled = store?.freeDeliveryEnabled ?? false;
+    _firstOrderDealEnabled = store?.firstOrderDealEnabled ?? false;
+    _discountEnabled = store?.discountEnabled ?? false;
+    _discountLabelCtrl.text = store?.discountLabel ?? '';
     _logoUrl = store?.imageUrl ?? '';
     _coverUrl = store?.coverUrl ?? '';
   }
@@ -351,9 +620,13 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
         ? store!.phone
         : widget.userPhone;
     _addressCtrl.text = store?.address ?? '';
-    _hoursCtrl.text = store?.openingHours ?? '';
+    _hydrateStructuredState(store);
     _delivery = store?.deliveryAvailable ?? true;
     _pickup = store?.pickupAvailable ?? true;
+    _freeDeliveryEnabled = store?.freeDeliveryEnabled ?? false;
+    _firstOrderDealEnabled = store?.firstOrderDealEnabled ?? false;
+    _discountEnabled = store?.discountEnabled ?? false;
+    _discountLabelCtrl.text = store?.discountLabel ?? '';
     _logoUrl = store?.imageUrl ?? '';
     _coverUrl = store?.coverUrl ?? '';
   }
@@ -364,9 +637,62 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
     _descriptionCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
-    _hoursCtrl.dispose();
+    _discountLabelCtrl.dispose();
     super.dispose();
   }
+
+  void _hydrateStructuredState(backend.MarketplaceStore? store) {
+    _category = backend.normalizeMarketplaceCategory(store?.category);
+    _daysOpen = store?.daysOpen.isNotEmpty == true
+        ? List<String>.of(store!.daysOpen)
+        : const ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    _openTime = _storeTimeOptions.contains(store?.openTime)
+        ? store!.openTime
+        : '09:00';
+    _closeTime = _storeTimeOptions.contains(store?.closeTime)
+        ? store!.closeTime
+        : '20:00';
+    _placeId = store?.placeId ?? '';
+    _cityArea = store?.cityArea ?? '';
+    _storePoint = store != null && store.lat != 0 && store.lng != 0
+        ? DemoMapPoint(store.lat, store.lng)
+        : null;
+    _addressSuggestions = const [];
+  }
+
+  void _updateAddressSuggestions(String value) {
+    setState(() {
+      _addressSuggestions = _placesService.localSuggestions(value);
+    });
+  }
+
+  void _selectAddressSuggestion(PlaceSuggestion suggestion) {
+    setState(() {
+      _addressCtrl.text = suggestion.description;
+      _placeId = suggestion.placeId;
+      _cityArea = suggestion.mainText;
+      if (suggestion.localPoint != null) {
+        _storePoint = suggestion.localPoint;
+      }
+      _addressSuggestions = const [];
+    });
+  }
+
+  void _setStorePoint(DemoMapPoint point) {
+    setState(() {
+      _storePoint = point;
+      if (_addressCtrl.text.trim().isEmpty) {
+        _addressCtrl.text =
+            '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+      }
+    });
+  }
+
+  String get _hoursPreview => backend.marketplaceHoursLabel(
+    daysOpen: _daysOpen,
+    openTime: _openTime,
+    closeTime: _closeTime,
+  );
 
   Future<void> _pickStoreImage({required bool isLogo}) async {
     final storeId = widget.store?.id ?? '';
@@ -423,6 +749,11 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               contentType: mime,
               extension: ext,
             );
+      if (kDebugMode) {
+        debugPrint(
+          '[StoreOwner] upload returned URL for ${isLogo ? 'store logo' : 'store cover'}: $url',
+        );
+      }
       if (!mounted) return;
       setState(() {
         if (url != null) {
@@ -475,6 +806,36 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
   void _save() {
     final now = DateTime.now();
     final existing = widget.store;
+    if (_daysOpen.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select at least one open day.')),
+      );
+      return;
+    }
+    if (backend.marketplaceTimeMinutes(_closeTime) <=
+        backend.marketplaceTimeMinutes(_openTime)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Closing time must be after opening time.'),
+        ),
+      );
+      return;
+    }
+    final point = _storePoint;
+    final address = _addressCtrl.text.trim();
+    final hoursLabel = _hoursPreview;
+    if (kDebugMode) {
+      debugPrint(
+        '[StoreOwner] saving store logo/cover URL: logo=$_logoUrl cover=$_coverUrl',
+      );
+    }
+    final existingStatus = existing?.status ?? '';
+    final nextStatus =
+        existing == null ||
+            existingStatus == 'rejected' ||
+            existingStatus == 'pending_approval'
+        ? 'pending'
+        : existingStatus;
     widget.onSave(
       backend.MarketplaceStore(
         id: existing?.id ?? '',
@@ -484,20 +845,32 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
             : _nameCtrl.text.trim(),
         description: _descriptionCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
-        category: existing?.category ?? 'General',
+        category: backend.normalizeMarketplaceCategory(_category),
         imageUrl: _logoUrl.isNotEmpty ? _logoUrl : (existing?.imageUrl ?? ''),
         coverUrl: _coverUrl.isNotEmpty ? _coverUrl : (existing?.coverUrl ?? ''),
-        status: existing?.status ?? 'active',
+        status: nextStatus,
         rating: existing?.rating ?? 0,
         isOpen: existing?.isOpen ?? true,
-        lat: existing?.lat ?? 0,
-        lng: existing?.lng ?? 0,
-        address: _addressCtrl.text.trim(),
+        lat: point?.latitude ?? existing?.lat ?? 0,
+        lng: point?.longitude ?? existing?.lng ?? 0,
+        address: address,
         deliveryEstimateMinutes: existing?.deliveryEstimateMinutes ?? 30,
-        categories: existing?.categories ?? const [],
+        categories: [backend.normalizeMarketplaceCategory(_category)],
         deliveryAvailable: _delivery,
         pickupAvailable: _pickup,
-        openingHours: _hoursCtrl.text.trim(),
+        freeDeliveryEnabled: _freeDeliveryEnabled,
+        firstOrderDealEnabled: _firstOrderDealEnabled,
+        discountEnabled: _discountEnabled,
+        discountLabel: _discountLabelCtrl.text.trim(),
+        featuredEnabled: existing?.featuredEnabled ?? false,
+        openingHours: hoursLabel,
+        daysOpen: List<String>.of(_daysOpen),
+        openTime: _openTime,
+        closeTime: _closeTime,
+        openingHoursLabel: hoursLabel,
+        addressLabel: address,
+        placeId: _placeId,
+        cityArea: _cityArea,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       ),
@@ -518,9 +891,23 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: kAccentYellow,
-                child: Icon(Icons.storefront_outlined, color: kBrandBlack),
+              OmwNetworkImage(
+                url: _logoUrl,
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                placeholder: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: kAccentYellow,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.storefront_outlined,
+                    color: kBrandBlack,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -628,24 +1015,69 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _addressCtrl,
-            cursorColor: kDeepGold,
+          DropdownButtonFormField<String>(
+            initialValue: _category,
+            dropdownColor: Colors.white,
             style: _storeOwnerInputTextStyle,
+            items: backend.marketplaceCategoryOptions
+                .map(
+                  (option) => DropdownMenuItem<String>(
+                    value: option.value,
+                    child: Text(option.label),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(
+              () => _category =
+                  value ?? backend.marketplaceCategoryOptions.first.value,
+            ),
             decoration: _storeOwnerInputDecoration(
-              label: 'Address',
-              icon: Icons.location_on_outlined,
+              label: 'Store category',
+              icon: Icons.category_outlined,
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _hoursCtrl,
-            cursorColor: kDeepGold,
-            style: _storeOwnerInputTextStyle,
-            decoration: _storeOwnerInputDecoration(
-              label: 'Opening hours',
-              hint: 'e.g. Mon–Sat 9:00–20:00',
-              icon: Icons.schedule_outlined,
+          _StoreHoursPicker(
+            daysOpen: _daysOpen,
+            openTime: _openTime,
+            closeTime: _closeTime,
+            onDaysChanged: (days) => setState(() => _daysOpen = days),
+            onOpenTimeChanged: (value) => setState(() => _openTime = value),
+            onCloseTimeChanged: (value) => setState(() => _closeTime = value),
+          ),
+          const SizedBox(height: 12),
+          _StoreLocationPicker(
+            addressCtrl: _addressCtrl,
+            suggestions: _addressSuggestions,
+            selectedPoint: _storePoint,
+            placeId: _placeId,
+            cityArea: _cityArea,
+            onAddressChanged: _updateAddressSuggestions,
+            onSuggestionSelected: _selectAddressSuggestion,
+            onMapTap: _setStorePoint,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.visibility_outlined, color: kAccentYellow),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _hoursPreview,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
@@ -668,6 +1100,42 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _StoreDiscoveryChip(
+                label: 'Free delivery',
+                value: _freeDeliveryEnabled,
+                onChanged: (value) =>
+                    setState(() => _freeDeliveryEnabled = value),
+              ),
+              _StoreDiscoveryChip(
+                label: 'First order deal',
+                value: _firstOrderDealEnabled,
+                onChanged: (value) =>
+                    setState(() => _firstOrderDealEnabled = value),
+              ),
+              _StoreDiscoveryChip(
+                label: 'Discount',
+                value: _discountEnabled,
+                onChanged: (value) => setState(() => _discountEnabled = value),
+              ),
+            ],
+          ),
+          if (_discountEnabled) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _discountLabelCtrl,
+              cursorColor: kDeepGold,
+              style: _storeOwnerInputTextStyle,
+              decoration: _storeOwnerInputDecoration(
+                label: 'Discount label',
+                icon: Icons.local_offer_outlined,
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -712,6 +1180,253 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
   }
 }
 
+class _StoreHoursPicker extends StatelessWidget {
+  const _StoreHoursPicker({
+    required this.daysOpen,
+    required this.openTime,
+    required this.closeTime,
+    required this.onDaysChanged,
+    required this.onOpenTimeChanged,
+    required this.onCloseTimeChanged,
+  });
+
+  final List<String> daysOpen;
+  final String openTime;
+  final String closeTime;
+  final ValueChanged<List<String>> onDaysChanged;
+  final ValueChanged<String> onOpenTimeChanged;
+  final ValueChanged<String> onCloseTimeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Days open',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: backend.marketplaceDayValues.map((day) {
+              final selected = daysOpen.contains(day);
+              return FilterChip(
+                label: Text(backend.marketplaceDayLabel(day)),
+                selected: selected,
+                selectedColor: kAccentYellow,
+                checkmarkColor: kBrandBlack,
+                labelStyle: TextStyle(
+                  color: selected ? kBrandBlack : Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                side: BorderSide(
+                  color: selected ? kAccentYellow : Colors.white24,
+                ),
+                onSelected: (value) {
+                  final next = List<String>.of(daysOpen);
+                  if (value) {
+                    next.add(day);
+                  } else {
+                    next.remove(day);
+                  }
+                  next.sort(
+                    (a, b) => backend.marketplaceDayValues
+                        .indexOf(a)
+                        .compareTo(backend.marketplaceDayValues.indexOf(b)),
+                  );
+                  onDaysChanged(next);
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: openTime,
+                  dropdownColor: Colors.white,
+                  style: _storeOwnerInputTextStyle,
+                  items: _storeTimeOptions
+                      .map(
+                        (time) => DropdownMenuItem<String>(
+                          value: time,
+                          child: Text(backend.marketplaceTimeLabel(time)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onOpenTimeChanged(value);
+                  },
+                  decoration: _storeOwnerInputDecoration(
+                    label: 'Opening time',
+                    icon: Icons.schedule_outlined,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: closeTime,
+                  dropdownColor: Colors.white,
+                  style: _storeOwnerInputTextStyle,
+                  items: _storeTimeOptions
+                      .map(
+                        (time) => DropdownMenuItem<String>(
+                          value: time,
+                          child: Text(backend.marketplaceTimeLabel(time)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onCloseTimeChanged(value);
+                  },
+                  decoration: _storeOwnerInputDecoration(
+                    label: 'Closing time',
+                    icon: Icons.lock_clock_outlined,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoreLocationPicker extends StatelessWidget {
+  const _StoreLocationPicker({
+    required this.addressCtrl,
+    required this.suggestions,
+    required this.selectedPoint,
+    required this.placeId,
+    required this.cityArea,
+    required this.onAddressChanged,
+    required this.onSuggestionSelected,
+    required this.onMapTap,
+  });
+
+  final TextEditingController addressCtrl;
+  final List<PlaceSuggestion> suggestions;
+  final DemoMapPoint? selectedPoint;
+  final String placeId;
+  final String cityArea;
+  final ValueChanged<String> onAddressChanged;
+  final ValueChanged<PlaceSuggestion> onSuggestionSelected;
+  final ValueChanged<DemoMapPoint> onMapTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final point = selectedPoint ?? _defaultStorePoint;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: addressCtrl,
+            cursorColor: kDeepGold,
+            style: _storeOwnerInputTextStyle,
+            onChanged: onAddressChanged,
+            decoration: _storeOwnerInputDecoration(
+              label: AppConfig.useGoogleMaps
+                  ? 'Search or select store location'
+                  : 'Address',
+              hint: AppConfig.useGoogleMaps
+                  ? 'Search area or tap the map'
+                  : 'Temporary manual address until Maps is configured',
+              icon: Icons.location_on_outlined,
+            ),
+          ),
+          if (suggestions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _PlacesSuggestionList(
+              suggestions: suggestions,
+              onSelected: onSuggestionSelected,
+            ),
+          ],
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 180,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AppMap(
+                    pickup: point,
+                    offerMarkers: [
+                      DemoMapMarker(
+                        id: 'store-location',
+                        point: point,
+                        label: 'Store location',
+                        icon: Icons.storefront_outlined,
+                      ),
+                    ],
+                    height: 180,
+                    gesturesEnabled: true,
+                    onMapTap: onMapTap,
+                  ),
+                  if (!AppConfig.useGoogleMaps)
+                    Positioned(
+                      left: 10,
+                      right: 10,
+                      bottom: 10,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Text(
+                            'Google Maps is not configured. Save an address now; latitude and longitude can be added later.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            selectedPoint == null
+                ? 'No map pin selected yet.'
+                : 'Selected: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}'
+                      '${cityArea.isEmpty ? '' : ' - $cityArea'}'
+                      '${placeId.isEmpty ? '' : ' - $placeId'}',
+            style: const TextStyle(
+              color: kMutedText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StoreToggleChip extends StatelessWidget {
   const _StoreToggleChip({
     required this.label,
@@ -731,6 +1446,33 @@ class _StoreToggleChip extends StatelessWidget {
       checkmarkColor: kBrandBlack,
       selectedColor: kAccentYellow,
       backgroundColor: Colors.white,
+      label: Text(
+        label,
+        style: const TextStyle(color: kBrandBlack, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _StoreDiscoveryChip extends StatelessWidget {
+  const _StoreDiscoveryChip({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      selected: value,
+      onSelected: onChanged,
+      checkmarkColor: kBrandBlack,
+      selectedColor: kAccentYellow,
+      backgroundColor: Colors.white.withValues(alpha: 0.92),
       label: Text(
         label,
         style: const TextStyle(color: kBrandBlack, fontWeight: FontWeight.w900),
@@ -933,95 +1675,6 @@ class _StoreInventoryCard extends StatelessWidget {
   final List<backend.MarketplaceProduct> products;
   final StoreCrmService service;
 
-  Future<void> _openCategoryDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    var active = true;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add category'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  cursorColor: kDeepGold,
-                  style: _storeOwnerInputTextStyle,
-                  decoration: _storeOwnerInputDecoration(
-                    label: 'Category name',
-                    icon: Icons.category_outlined,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descCtrl,
-                  cursorColor: kDeepGold,
-                  style: _storeOwnerInputTextStyle,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: _storeOwnerInputDecoration(
-                    label: 'Description',
-                    icon: Icons.notes_outlined,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: active,
-                  onChanged: (value) => setDialogState(() => active = value),
-                  title: const Text(
-                    'Active category',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('Save category'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (saved != true || nameCtrl.text.trim().isEmpty) return;
-    final now = DateTime.now();
-    try {
-      await service.upsertCategory(
-        ProductCategory(
-          id: '',
-          storeId: store.id,
-          name: nameCtrl.text.trim(),
-          description: descCtrl.text.trim(),
-          isActive: active,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Category saved.')));
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save category.')),
-        );
-      }
-    }
-  }
-
   Future<void> _openProductDialog(
     BuildContext context, {
     backend.MarketplaceProduct? product,
@@ -1029,7 +1682,6 @@ class _StoreInventoryCard extends StatelessWidget {
   }) async {
     final nameCtrl = TextEditingController(text: product?.name ?? '');
     final descCtrl = TextEditingController(text: product?.description ?? '');
-    final categoryCtrl = TextEditingController(text: product?.category ?? '');
     final priceCtrl = TextEditingController(
       text: product?.price.toString() ?? '',
     );
@@ -1046,18 +1698,17 @@ class _StoreInventoryCard extends StatelessWidget {
     var uploadingImage = false;
     var available = product?.isAvailable ?? true;
     var visible = product?.isVisibleToCustomers ?? true;
-    var selectedCategory = product?.category.isNotEmpty == true
-        ? product!.category
-        : (categories.isEmpty ? null : categories.first.name);
-    final activeCategoryNames = categories
-        .where((category) => category.isActive)
-        .map((category) => category.name)
-        .toList();
-    if (!activeCategoryNames.contains(selectedCategory)) {
-      selectedCategory = activeCategoryNames.isEmpty
-          ? null
-          : activeCategoryNames.first;
-    }
+    var productDiscountEnabled = product?.discountEnabled ?? false;
+    final productDiscountLabelCtrl = TextEditingController(
+      text: product?.discountLabel ?? '',
+    );
+    final productCategory = backend.normalizeMarketplaceCategory(
+      store.category,
+    );
+    var selectedSubcategory = backend.normalizeMarketplaceSubcategory(
+      productCategory,
+      product?.subcategory,
+    );
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1089,35 +1740,33 @@ class _StoreInventoryCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (categories.isEmpty)
-                  TextField(
-                    controller: categoryCtrl,
-                    cursorColor: kDeepGold,
-                    style: _storeOwnerInputTextStyle,
-                    decoration: _storeOwnerInputDecoration(
-                      label: 'Category',
-                      icon: Icons.category_outlined,
-                    ),
-                  )
-                else
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCategory,
-                    items: activeCategoryNames
-                        .map(
-                          (name) => DropdownMenuItem<String>(
-                            value: name,
-                            child: Text(name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setDialogState(
-                      () => selectedCategory = value ?? selectedCategory,
-                    ),
-                    decoration: _storeOwnerInputDecoration(
-                      label: 'Category',
-                      icon: Icons.category_outlined,
-                    ),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedSubcategory,
+                  dropdownColor: Colors.white,
+                  style: _storeOwnerInputTextStyle,
+                  items: backend
+                      .marketplaceSubcategoryOptionsFor(productCategory)
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option.value,
+                          child: Text(option.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setDialogState(
+                    () => selectedSubcategory =
+                        value ??
+                        backend
+                            .marketplaceSubcategoryOptionsFor(productCategory)
+                            .first
+                            .value,
                   ),
+                  decoration: _storeOwnerInputDecoration(
+                    label:
+                        '${backend.marketplaceCategoryLabel(productCategory)} subcategory',
+                    icon: Icons.category_outlined,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: priceCtrl,
@@ -1180,6 +1829,28 @@ class _StoreInventoryCard extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: productDiscountEnabled,
+                  onChanged: (value) =>
+                      setDialogState(() => productDiscountEnabled = value),
+                  title: const Text(
+                    'Include in deals',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (productDiscountEnabled) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: productDiscountLabelCtrl,
+                    cursorColor: kDeepGold,
+                    style: _storeOwnerInputTextStyle,
+                    decoration: _storeOwnerInputDecoration(
+                      label: 'Deal label',
+                      icon: Icons.local_offer_outlined,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 if (productImageUrl.isNotEmpty) ...[
                   ClipRRect(
@@ -1235,18 +1906,38 @@ class _StoreInventoryCard extends StatelessWidget {
                                     contentType: mime,
                                     extension: ext,
                                   );
+                              if (kDebugMode) {
+                                debugPrint(
+                                  '[StoreOwner] upload returned URL for product image: $url',
+                                );
+                              }
                               setDialogState(() {
                                 if (url != null) productImageUrl = url;
                                 uploadingImage = false;
                               });
-                            } catch (_) {
+                            } on FirebaseException catch (error) {
                               setDialogState(() => uploadingImage = false);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     content: Text(
-                                      'Image upload failed. Please try again.',
+                                      'Image upload failed: ${error.code}',
                                     ),
+                                  ),
+                                );
+                              }
+                              debugPrint(
+                                '[StoreOwner] Product image upload failed: ${error.code} ${error.message}',
+                              );
+                            } catch (error) {
+                              setDialogState(() => uploadingImage = false);
+                              debugPrint(
+                                '[StoreOwner] Product image upload failed: $error',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Image upload failed.'),
                                   ),
                                 );
                               }
@@ -1286,19 +1977,40 @@ class _StoreInventoryCard extends StatelessWidget {
     if (saved != true) return;
     final productName = nameCtrl.text.trim();
     final price = double.tryParse(priceCtrl.text.trim());
-    if (productName.isEmpty || price == null || price <= 0) {
+    final stock = int.tryParse(stockCtrl.text.trim());
+    final lowStockThreshold = int.tryParse(thresholdCtrl.text.trim());
+    if (productName.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Enter a product name and a price greater than 0.'),
-          ),
+          const SnackBar(content: Text('Product name is required.')),
+        );
+      }
+      return;
+    }
+    if (price == null || price <= 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Price must be greater than 0.')),
+        );
+      }
+      return;
+    }
+    if (stock == null || stock < 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Stock quantity must be 0 or higher.')),
         );
       }
       return;
     }
     final now = DateTime.now();
-    final stock = int.tryParse(stockCtrl.text.trim()) ?? 0;
-    final lowStockThreshold = int.tryParse(thresholdCtrl.text.trim()) ?? 2;
+    final normalizedSubcategory = backend.normalizeMarketplaceSubcategory(
+      productCategory,
+      selectedSubcategory,
+    );
+    if (kDebugMode) {
+      debugPrint('[StoreOwner] saving product image URL: $productImageUrl');
+    }
     try {
       await service.upsertProduct(
         backend.MarketplaceProduct(
@@ -1307,16 +2019,15 @@ class _StoreInventoryCard extends StatelessWidget {
           storeOwnerId: store.ownerId,
           name: productName,
           description: descCtrl.text.trim(),
-          category:
-              selectedCategory ??
-              (categoryCtrl.text.trim().isEmpty
-                  ? 'General'
-                  : categoryCtrl.text.trim()),
+          category: productCategory,
+          subcategory: normalizedSubcategory,
+          discountEnabled: productDiscountEnabled,
+          discountLabel: productDiscountLabelCtrl.text.trim(),
           price: price,
           cost: double.tryParse(costCtrl.text.trim()),
           imageUrl: productImageUrl,
           stockQuantity: stock,
-          lowStockThreshold: lowStockThreshold,
+          lowStockThreshold: lowStockThreshold ?? 2,
           isAvailable: stock <= 0 ? false : available,
           isVisibleToCustomers: visible,
           createdAt: product?.createdAt ?? now,
@@ -1331,7 +2042,17 @@ class _StoreInventoryCard extends StatelessWidget {
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
       }
-    } catch (_) {
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[StoreOwner] Save product FirebaseException: ${error.code} ${error.message}',
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save product: ${error.code}')),
+        );
+      }
+    } catch (error) {
+      debugPrint('[StoreOwner] Save product failed: $error');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not save product.')),
@@ -1360,11 +2081,6 @@ class _StoreInventoryCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                onPressed: () => _openCategoryDialog(context),
-                icon: const Icon(Icons.category_outlined),
-                label: const Text('Category'),
-              ),
               FilledButton.icon(
                 onPressed: () =>
                     _openProductDialog(context, categories: categories),
@@ -1396,26 +2112,22 @@ class _StoreInventoryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            if (categories.isNotEmpty) ...[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: categories
-                    .map(
-                      (category) => Chip(
-                        label: Text(category.name),
-                        avatar: Icon(
-                          category.isActive
-                              ? Icons.check_circle_outline
-                              : Icons.pause_circle_outline,
-                          size: 18,
-                        ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: backend.marketplaceCategoryOptions
+                  .map(
+                    (category) => Chip(
+                      label: Text(category.label),
+                      avatar: Icon(
+                        _marketplaceCategoryIcon(category.value),
+                        size: 18,
                       ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 12),
-            ],
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 12),
             if (products.isEmpty)
               const _StoreEmptyState(
                 icon: Icons.inventory_2_outlined,
@@ -1544,7 +2256,10 @@ class _ProductInventoryTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        product.category,
+                        backend.marketplaceSubcategoryLabel(
+                          product.category,
+                          product.subcategory,
+                        ),
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontWeight: FontWeight.w700,
@@ -1764,6 +2479,11 @@ class _StoreOrdersCard extends StatelessWidget {
                       'Total',
                       '\$${order.total.toStringAsFixed(2)}',
                     ),
+                    if (order.deliveryStatus.isNotEmpty &&
+                        order.deliveryStatus != 'none')
+                      _StoreInfoRow('Delivery', order.deliveryStatus),
+                    if (order.assignedWorkerName?.isNotEmpty == true)
+                      _StoreInfoRow('Worker', order.assignedWorkerName!),
                     const SizedBox(height: 6),
                     Text(
                       order.items
@@ -1819,10 +2539,12 @@ class _StoreOrdersCard extends StatelessWidget {
       case backend.MarketplaceOrderStatus.shopping:
         return [action('Mark ready', backend.MarketplaceOrderStatus.pickedUp)];
       case backend.MarketplaceOrderStatus.pickedUp:
+        // Order is ready for pickup — worker dispatch in progress.
+        // Store owner cannot mark delivered; worker does that.
+        return const [];
       case backend.MarketplaceOrderStatus.onTheWay:
-        return [
-          action('Mark completed', backend.MarketplaceOrderStatus.delivered),
-        ];
+        // Worker is delivering; no store action needed.
+        return const [];
       case backend.MarketplaceOrderStatus.delivered:
       case backend.MarketplaceOrderStatus.cancelled:
         return const [];

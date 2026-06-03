@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Displays a network image from [url] at the given [width] x [height].
@@ -22,15 +23,21 @@ class OmwNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url.trim().isEmpty) return placeholder;
+    final imageUrl = url.trim();
+    if (imageUrl.isEmpty) return placeholder;
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Image.network(
-        url,
+        imageUrl,
         width: width,
         height: height,
         fit: fit,
-        errorBuilder: (context, error, stackTrace) => placeholder,
+        errorBuilder: (context, error, stackTrace) {
+          if (kDebugMode) {
+            debugPrint('[OMW Image] Failed to render image: $imageUrl $error');
+          }
+          return placeholder;
+        },
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return placeholder;

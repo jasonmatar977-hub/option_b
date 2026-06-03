@@ -155,7 +155,12 @@ class CustomerHomeScreen extends StatelessWidget {
                   child: _CustomerMiniActionCard(
                     icon: Icons.receipt_long_outlined,
                     title: 'My Orders',
-                    onTap: () => _showComingSoon(context, 'My Orders'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            CustomerOrdersScreen(onSwitchAccount: onSignOut),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -644,19 +649,19 @@ class _CustomerActiveMarketplaceCard extends StatelessWidget {
   String get _headline {
     switch (order.status) {
       case backend.MarketplaceOrderStatus.pending:
-        return 'Waiting for courier';
+        return 'Order placed — waiting for store';
       case backend.MarketplaceOrderStatus.accepted:
-        return 'Courier accepted your marketplace order';
+        return 'Store accepted your order';
       case backend.MarketplaceOrderStatus.shopping:
-        return 'Shopping/preparing';
+        return 'Store is preparing your order';
       case backend.MarketplaceOrderStatus.pickedUp:
-        return 'Picked up';
+        return 'Ready — awaiting courier dispatch';
       case backend.MarketplaceOrderStatus.onTheWay:
-        return 'On the way';
+        return 'Courier is on the way to you';
       case backend.MarketplaceOrderStatus.delivered:
         return 'Delivered';
       case backend.MarketplaceOrderStatus.cancelled:
-        return 'Cancelled';
+        return 'Order cancelled';
     }
   }
 
@@ -810,6 +815,319 @@ class _CustomerMiniActionCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CustomerOrdersScreen — recent marketplace order history
+// ---------------------------------------------------------------------------
+
+class CustomerOrdersScreen extends StatelessWidget {
+  const CustomerOrdersScreen({super.key, this.onSwitchAccount});
+
+  final VoidCallback? onSwitchAccount;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = AuthService().currentUser;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Orders'),
+        actions: [
+          if (onSwitchAccount != null)
+            TextButton.icon(
+              onPressed: () => switchAccountFrom(context, onSwitchAccount!),
+              icon: const Icon(Icons.logout),
+              label: const Text('Switch'),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: user == null
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Please sign in to view your orders.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              )
+            : StreamBuilder<List<backend.MarketplaceOrder>>(
+                stream: MarketplaceService().watchCustomerMarketplaceOrders(
+                  user.uid,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cloud_off_outlined,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Could not load orders.\n${snapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.red.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final orders = snapshot.data ?? const [];
+                  if (orders.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.receipt_long_outlined,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No orders yet',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Your marketplace orders will appear here.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  final active = orders
+                      .where(
+                        (o) =>
+                            o.status !=
+                                backend.MarketplaceOrderStatus.delivered &&
+                            o.status !=
+                                backend.MarketplaceOrderStatus.cancelled,
+                      )
+                      .toList();
+                  final done = orders
+                      .where(
+                        (o) =>
+                            o.status ==
+                                backend.MarketplaceOrderStatus.delivered ||
+                            o.status ==
+                                backend.MarketplaceOrderStatus.cancelled,
+                      )
+                      .toList();
+                  return ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      if (active.isNotEmpty) ...[
+                        const Text(
+                          'Active orders',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ...active.map(
+                          (order) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _CustomerOrderRow(
+                              order: order,
+                              onSwitchAccount: onSwitchAccount,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                      if (done.isNotEmpty) ...[
+                        const Text(
+                          'Past orders',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ...done.map(
+                          (order) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _CustomerOrderRow(
+                              order: order,
+                              onSwitchAccount: onSwitchAccount,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+class _CustomerOrderRow extends StatelessWidget {
+  const _CustomerOrderRow({required this.order, this.onSwitchAccount});
+
+  final backend.MarketplaceOrder order;
+  final VoidCallback? onSwitchAccount;
+
+  String get _statusLabel {
+    if (order.status == backend.MarketplaceOrderStatus.cancelled) {
+      return 'Cancelled';
+    }
+    if (order.status == backend.MarketplaceOrderStatus.delivered) {
+      return 'Delivered';
+    }
+    // Derive label from deliveryStatus when it gives more detail
+    return switch (order.deliveryStatus) {
+      backend.MarketplaceDeliveryStatus.awaitingWorker => 'Awaiting courier',
+      backend.MarketplaceDeliveryStatus.assigned => 'Courier heading to store',
+      backend.MarketplaceDeliveryStatus.pickedUp => 'Courier picked up',
+      backend.MarketplaceDeliveryStatus.onTheWay => 'On the way to you',
+      _ => switch (order.status) {
+        backend.MarketplaceOrderStatus.pending => 'Waiting for store',
+        backend.MarketplaceOrderStatus.accepted => 'Store accepted',
+        backend.MarketplaceOrderStatus.shopping => 'Store preparing',
+        backend.MarketplaceOrderStatus.pickedUp => 'Ready for pickup',
+        _ => order.status.name,
+      },
+    };
+  }
+
+  Color _statusColor(BuildContext context) {
+    return switch (order.status) {
+      backend.MarketplaceOrderStatus.delivered => Colors.green.shade700,
+      backend.MarketplaceOrderStatus.cancelled => Colors.red.shade700,
+      _ => kDeepGold,
+    };
+  }
+
+  String _shortId() {
+    final id = order.id;
+    return id.length > 8 ? '#${id.substring(0, 8).toUpperCase()}' : '#$id';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MarketplaceTrackingScreen(
+            order: order,
+            onSwitchAccount: onSwitchAccount,
+          ),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: kBrandBlack,
+              child: const Icon(
+                Icons.shopping_bag_outlined,
+                color: kAccentYellow,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          order.storeName.isEmpty
+                              ? 'OMW Store'
+                              : order.storeName,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '\$${order.total.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${_shortId()} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _statusColor(context).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _statusLabel,
+                      style: TextStyle(
+                        color: _statusColor(context),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
       ),

@@ -285,6 +285,7 @@ class WorkerService {
     return _firebaseService.firestore
         .collection(workersCollection)
         .where('status', isEqualTo: WorkerStatus.approved.name)
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -300,6 +301,7 @@ class WorkerService {
     return _firebaseService.firestore
         .collection(workersCollection)
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .map(_workersFromSnapshot);
   }
@@ -311,6 +313,7 @@ class WorkerService {
     return _firebaseService.firestore
         .collection(workersCollection)
         .where('status', isEqualTo: WorkerStatus.pending.name)
+        .limit(30)
         .snapshots()
         .map(_workersFromSnapshot);
   }
@@ -323,6 +326,7 @@ class WorkerService {
         .collection(workersCollection)
         .where('status', isEqualTo: WorkerStatus.approved.name)
         .where('isOnline', isEqualTo: true)
+        .limit(30)
         .snapshots()
         .map(_workersFromSnapshot);
   }

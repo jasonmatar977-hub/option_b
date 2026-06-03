@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 
@@ -16,6 +17,347 @@ Object? _dateToValue(DateTime? value) =>
 List<String> _stringList(Object? value) {
   if (value is Iterable) return value.whereType<String>().toList();
   return const [];
+}
+
+class MarketplaceCategoryOption {
+  const MarketplaceCategoryOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
+const List<MarketplaceCategoryOption> marketplaceCategoryOptions = [
+  MarketplaceCategoryOption(value: 'grocery', label: 'Grocery'),
+  MarketplaceCategoryOption(value: 'restaurant', label: 'Restaurant'),
+  MarketplaceCategoryOption(value: 'pharmacy', label: 'Pharmacy'),
+  MarketplaceCategoryOption(value: 'electronics', label: 'Electronics'),
+  MarketplaceCategoryOption(value: 'clothing', label: 'Clothing'),
+  MarketplaceCategoryOption(value: 'bakery', label: 'Bakery'),
+  MarketplaceCategoryOption(value: 'coffee_shop', label: 'Coffee Shop'),
+  MarketplaceCategoryOption(
+    value: 'convenience_store',
+    label: 'Convenience Store',
+  ),
+  MarketplaceCategoryOption(value: 'flowers', label: 'Flowers'),
+  MarketplaceCategoryOption(
+    value: 'beauty_personal_care',
+    label: 'Beauty & Personal Care',
+  ),
+  MarketplaceCategoryOption(value: 'other', label: 'Other'),
+];
+
+const List<String> marketplaceCategoryValues = [
+  'grocery',
+  'restaurant',
+  'pharmacy',
+  'electronics',
+  'clothing',
+  'bakery',
+  'coffee_shop',
+  'convenience_store',
+  'flowers',
+  'beauty_personal_care',
+  'other',
+];
+
+const Map<String, List<MarketplaceCategoryOption>>
+marketplaceProductSubcategoryOptions = {
+  'grocery': [
+    MarketplaceCategoryOption(
+      value: 'fruits_vegetables',
+      label: 'Fruits & Vegetables',
+    ),
+    MarketplaceCategoryOption(value: 'meat_chicken', label: 'Meat & Chicken'),
+    MarketplaceCategoryOption(value: 'dairy_eggs', label: 'Dairy & Eggs'),
+    MarketplaceCategoryOption(value: 'bread_bakery', label: 'Bread & Bakery'),
+    MarketplaceCategoryOption(value: 'drinks', label: 'Drinks'),
+    MarketplaceCategoryOption(value: 'snacks', label: 'Snacks'),
+    MarketplaceCategoryOption(
+      value: 'rice_pasta_grains',
+      label: 'Rice, Pasta & Grains',
+    ),
+    MarketplaceCategoryOption(value: 'canned_food', label: 'Canned Food'),
+    MarketplaceCategoryOption(value: 'frozen_food', label: 'Frozen Food'),
+    MarketplaceCategoryOption(
+      value: 'cleaning_supplies',
+      label: 'Cleaning Supplies',
+    ),
+    MarketplaceCategoryOption(value: 'personal_care', label: 'Personal Care'),
+    MarketplaceCategoryOption(value: 'other_grocery', label: 'Other Grocery'),
+  ],
+  'restaurant': [
+    MarketplaceCategoryOption(value: 'appetizers', label: 'Appetizers'),
+    MarketplaceCategoryOption(value: 'main_dishes', label: 'Main Dishes'),
+    MarketplaceCategoryOption(value: 'sandwiches', label: 'Sandwiches'),
+    MarketplaceCategoryOption(value: 'burgers', label: 'Burgers'),
+    MarketplaceCategoryOption(value: 'pizza', label: 'Pizza'),
+    MarketplaceCategoryOption(value: 'salads', label: 'Salads'),
+    MarketplaceCategoryOption(value: 'desserts', label: 'Desserts'),
+    MarketplaceCategoryOption(value: 'drinks', label: 'Drinks'),
+    MarketplaceCategoryOption(value: 'breakfast', label: 'Breakfast'),
+    MarketplaceCategoryOption(value: 'combos', label: 'Combos'),
+    MarketplaceCategoryOption(value: 'other_food', label: 'Other Food'),
+  ],
+  'pharmacy': [
+    MarketplaceCategoryOption(value: 'pain_relief', label: 'Pain Relief'),
+    MarketplaceCategoryOption(value: 'cold_flu', label: 'Cold & Flu'),
+    MarketplaceCategoryOption(value: 'vitamins', label: 'Vitamins'),
+    MarketplaceCategoryOption(value: 'baby_care', label: 'Baby Care'),
+    MarketplaceCategoryOption(value: 'personal_care', label: 'Personal Care'),
+    MarketplaceCategoryOption(value: 'first_aid', label: 'First Aid'),
+    MarketplaceCategoryOption(value: 'skin_care', label: 'Skin Care'),
+    MarketplaceCategoryOption(
+      value: 'medical_devices',
+      label: 'Medical Devices',
+    ),
+    MarketplaceCategoryOption(
+      value: 'prescription_request',
+      label: 'Prescription Request',
+    ),
+    MarketplaceCategoryOption(value: 'other_pharmacy', label: 'Other Pharmacy'),
+  ],
+  'electronics': [
+    MarketplaceCategoryOption(value: 'phones', label: 'Phones'),
+    MarketplaceCategoryOption(value: 'accessories', label: 'Accessories'),
+    MarketplaceCategoryOption(
+      value: 'chargers_cables',
+      label: 'Chargers & Cables',
+    ),
+    MarketplaceCategoryOption(value: 'headphones', label: 'Headphones'),
+    MarketplaceCategoryOption(value: 'computers', label: 'Computers'),
+    MarketplaceCategoryOption(value: 'gaming', label: 'Gaming'),
+    MarketplaceCategoryOption(value: 'smart_devices', label: 'Smart Devices'),
+    MarketplaceCategoryOption(value: 'repair_parts', label: 'Repair Parts'),
+    MarketplaceCategoryOption(
+      value: 'other_electronics',
+      label: 'Other Electronics',
+    ),
+  ],
+  'clothing': [
+    MarketplaceCategoryOption(value: 'men', label: 'Men'),
+    MarketplaceCategoryOption(value: 'women', label: 'Women'),
+    MarketplaceCategoryOption(value: 'kids', label: 'Kids'),
+    MarketplaceCategoryOption(value: 'shoes', label: 'Shoes'),
+    MarketplaceCategoryOption(value: 'bags', label: 'Bags'),
+    MarketplaceCategoryOption(value: 'accessories', label: 'Accessories'),
+    MarketplaceCategoryOption(value: 'sportswear', label: 'Sportswear'),
+    MarketplaceCategoryOption(value: 'underwear', label: 'Underwear'),
+    MarketplaceCategoryOption(value: 'seasonal', label: 'Seasonal'),
+    MarketplaceCategoryOption(value: 'other_clothing', label: 'Other Clothing'),
+  ],
+  'bakery': [
+    MarketplaceCategoryOption(value: 'bread', label: 'Bread'),
+    MarketplaceCategoryOption(value: 'cakes', label: 'Cakes'),
+    MarketplaceCategoryOption(value: 'pastries', label: 'Pastries'),
+    MarketplaceCategoryOption(value: 'cookies', label: 'Cookies'),
+    MarketplaceCategoryOption(value: 'manakish', label: 'Manakish'),
+    MarketplaceCategoryOption(value: 'desserts', label: 'Desserts'),
+    MarketplaceCategoryOption(value: 'drinks', label: 'Drinks'),
+    MarketplaceCategoryOption(value: 'other_bakery', label: 'Other Bakery'),
+  ],
+  'coffee_shop': [
+    MarketplaceCategoryOption(value: 'hot_coffee', label: 'Hot Coffee'),
+    MarketplaceCategoryOption(value: 'iced_coffee', label: 'Iced Coffee'),
+    MarketplaceCategoryOption(value: 'tea', label: 'Tea'),
+    MarketplaceCategoryOption(value: 'smoothies', label: 'Smoothies'),
+    MarketplaceCategoryOption(value: 'desserts', label: 'Desserts'),
+    MarketplaceCategoryOption(value: 'snacks', label: 'Snacks'),
+    MarketplaceCategoryOption(value: 'breakfast', label: 'Breakfast'),
+    MarketplaceCategoryOption(
+      value: 'other_coffee_shop',
+      label: 'Other Coffee Shop',
+    ),
+  ],
+  'convenience_store': [
+    MarketplaceCategoryOption(value: 'drinks', label: 'Drinks'),
+    MarketplaceCategoryOption(value: 'snacks', label: 'Snacks'),
+    MarketplaceCategoryOption(
+      value: 'non_restricted_goods',
+      label: 'Tobacco Alternatives / Non-restricted goods only',
+    ),
+    MarketplaceCategoryOption(
+      value: 'household_items',
+      label: 'Household Items',
+    ),
+    MarketplaceCategoryOption(value: 'personal_care', label: 'Personal Care'),
+    MarketplaceCategoryOption(value: 'phone_cards', label: 'Phone Cards'),
+    MarketplaceCategoryOption(
+      value: 'other_convenience',
+      label: 'Other Convenience',
+    ),
+  ],
+  'flowers': [
+    MarketplaceCategoryOption(value: 'bouquets', label: 'Bouquets'),
+    MarketplaceCategoryOption(value: 'roses', label: 'Roses'),
+    MarketplaceCategoryOption(value: 'plants', label: 'Plants'),
+    MarketplaceCategoryOption(value: 'gifts', label: 'Gifts'),
+    MarketplaceCategoryOption(value: 'events', label: 'Events'),
+    MarketplaceCategoryOption(value: 'add_ons', label: 'Add-ons'),
+    MarketplaceCategoryOption(value: 'other_flowers', label: 'Other Flowers'),
+  ],
+  'beauty_personal_care': [
+    MarketplaceCategoryOption(value: 'hair_care', label: 'Hair Care'),
+    MarketplaceCategoryOption(value: 'skin_care', label: 'Skin Care'),
+    MarketplaceCategoryOption(value: 'perfume', label: 'Perfume'),
+    MarketplaceCategoryOption(value: 'makeup', label: 'Makeup'),
+    MarketplaceCategoryOption(value: 'nails', label: 'Nails'),
+    MarketplaceCategoryOption(value: 'men_grooming', label: 'Men Grooming'),
+    MarketplaceCategoryOption(
+      value: 'personal_hygiene',
+      label: 'Personal Hygiene',
+    ),
+    MarketplaceCategoryOption(value: 'other_beauty', label: 'Other Beauty'),
+  ],
+  'other': [
+    MarketplaceCategoryOption(value: 'general', label: 'General'),
+    MarketplaceCategoryOption(value: 'special_items', label: 'Special Items'),
+    MarketplaceCategoryOption(value: 'other', label: 'Other'),
+  ],
+};
+
+String normalizeMarketplaceCategory(Object? raw) {
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  final collapsed = value
+      .replaceAll('&', 'and')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+  return switch (collapsed) {
+    'grocery' || 'groceries' || 'grocery_store' || 'supermarket' => 'grocery',
+    'restaurant' || 'restaurants' || 'food' || 'food_drink' => 'restaurant',
+    'pharmacy' || 'pharmacies' || 'drugstore' => 'pharmacy',
+    'electronics' || 'electronic' => 'electronics',
+    'clothing' || 'clothes' || 'fashion' => 'clothing',
+    'bakery' || 'bakeries' => 'bakery',
+    'coffee' || 'coffee_shop' || 'cafe' || 'cafes' => 'coffee_shop',
+    'convenience' ||
+    'convenience_store' ||
+    'mini_market' => 'convenience_store',
+    'flowers' || 'flower' || 'florist' => 'flowers',
+    'beauty' ||
+    'beauty_personal_care' ||
+    'beauty_and_personal_care' ||
+    'personal_care' => 'beauty_personal_care',
+    'other' || 'general' || '' => 'other',
+    _ => 'other',
+  };
+}
+
+String marketplaceCategoryLabel(String value) {
+  final normalized = normalizeMarketplaceCategory(value);
+  return marketplaceCategoryOptions
+      .firstWhere(
+        (option) => option.value == normalized,
+        orElse: () => marketplaceCategoryOptions.last,
+      )
+      .label;
+}
+
+List<MarketplaceCategoryOption> marketplaceSubcategoryOptionsFor(
+  String category,
+) {
+  final normalized = normalizeMarketplaceCategory(category);
+  return marketplaceProductSubcategoryOptions[normalized] ??
+      marketplaceProductSubcategoryOptions['other']!;
+}
+
+String normalizeMarketplaceSubcategory(String category, Object? raw) {
+  final options = marketplaceSubcategoryOptionsFor(category);
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  final collapsed = value
+      .replaceAll('&', 'and')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+  if (collapsed.isEmpty) return options.first.value;
+  final exact = options.where((option) => option.value == collapsed);
+  if (exact.isNotEmpty) return exact.first.value;
+  final labelMatch = options.where((option) {
+    final labelValue = option.label
+        .toLowerCase()
+        .replaceAll('&', 'and')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+    return labelValue == collapsed;
+  });
+  return labelMatch.isNotEmpty ? labelMatch.first.value : options.last.value;
+}
+
+String marketplaceSubcategoryLabel(String category, String value) {
+  final options = marketplaceSubcategoryOptionsFor(category);
+  final normalized = normalizeMarketplaceSubcategory(category, value);
+  return options
+      .firstWhere(
+        (option) => option.value == normalized,
+        orElse: () => options.last,
+      )
+      .label;
+}
+
+const List<String> marketplaceDayValues = [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+];
+
+String marketplaceDayLabel(String day) => switch (day) {
+  'mon' => 'Mon',
+  'tue' => 'Tue',
+  'wed' => 'Wed',
+  'thu' => 'Thu',
+  'fri' => 'Fri',
+  'sat' => 'Sat',
+  'sun' => 'Sun',
+  _ => day,
+};
+
+String marketplaceTimeLabel(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return value;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return value;
+  final suffix = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return '$displayHour:${minute.toString().padLeft(2, '0')} $suffix';
+}
+
+String marketplaceHoursLabel({
+  required List<String> daysOpen,
+  required String openTime,
+  required String closeTime,
+}) {
+  final normalizedDays =
+      daysOpen.where(marketplaceDayValues.contains).toSet().toList()..sort(
+        (a, b) => marketplaceDayValues
+            .indexOf(a)
+            .compareTo(marketplaceDayValues.indexOf(b)),
+      );
+  final dayLabel =
+      normalizedDays.length == 6 &&
+          const [
+            'mon',
+            'tue',
+            'wed',
+            'thu',
+            'fri',
+            'sat',
+          ].every(normalizedDays.contains)
+      ? 'Mon-Sat'
+      : normalizedDays.length == 7
+      ? 'Every day'
+      : normalizedDays.map(marketplaceDayLabel).join(', ');
+  return '$dayLabel ${marketplaceTimeLabel(openTime)} - ${marketplaceTimeLabel(closeTime)}';
+}
+
+int marketplaceTimeMinutes(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return 0;
+  final hour = int.tryParse(parts[0]) ?? 0;
+  final minute = int.tryParse(parts[1]) ?? 0;
+  return hour * 60 + minute;
 }
 
 enum AppRole {
@@ -688,7 +1030,7 @@ class JobOffer {
     this.gross,
     this.platformCommission,
     this.workerPayout,
-    this.paymentStatus = 'manual',
+    this.paymentStatus = 'pending',
     this.workerPayoutStatus = 'unpaid',
     this.workerPaidAt,
     this.ownerNet,
@@ -755,7 +1097,7 @@ class JobOffer {
       gross: (data['gross'] as num?)?.toDouble(),
       platformCommission: (data['platformCommission'] as num?)?.toDouble(),
       workerPayout: (data['workerPayout'] as num?)?.toDouble(),
-      paymentStatus: data['paymentStatus'] as String? ?? 'manual',
+      paymentStatus: data['paymentStatus'] as String? ?? 'pending',
       workerPayoutStatus: data['workerPayoutStatus'] as String? ?? 'unpaid',
       workerPaidAt: _dateFromValue(data['workerPaidAt']),
       ownerNet: (data['ownerNet'] as num?)?.toDouble(),
@@ -1169,7 +1511,19 @@ class MarketplaceStore {
     this.categories = const [],
     this.deliveryAvailable = true,
     this.pickupAvailable = true,
+    this.freeDeliveryEnabled = false,
+    this.firstOrderDealEnabled = false,
+    this.discountEnabled = false,
+    this.discountLabel = '',
+    this.featuredEnabled = false,
     this.openingHours,
+    this.daysOpen = const ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    this.openTime = '09:00',
+    this.closeTime = '20:00',
+    this.openingHoursLabel = '',
+    this.addressLabel = '',
+    this.placeId = '',
+    this.cityArea = '',
     this.createdAt,
     this.updatedAt,
     this.approvedAt,
@@ -1195,7 +1549,19 @@ class MarketplaceStore {
   final List<String> categories;
   final bool deliveryAvailable;
   final bool pickupAvailable;
+  final bool freeDeliveryEnabled;
+  final bool firstOrderDealEnabled;
+  final bool discountEnabled;
+  final String discountLabel;
+  final bool featuredEnabled;
   final String? openingHours;
+  final List<String> daysOpen;
+  final String openTime;
+  final String closeTime;
+  final String openingHoursLabel;
+  final String addressLabel;
+  final String placeId;
+  final String cityArea;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? approvedAt;
@@ -1203,17 +1569,54 @@ class MarketplaceStore {
   final String? rejectionReason;
 
   bool get isCustomerVisible {
-    final normalized = status.trim().isEmpty ? 'active' : status;
+    final normalized = status.trim().isEmpty ? 'pending' : status;
     return name.trim().isNotEmpty &&
-        normalized != 'rejected' &&
-        normalized != 'suspended' &&
-        normalized != 'paused';
+        (normalized == 'approved' || normalized == 'active');
   }
 
   bool get isCustomerOrderable => isCustomerVisible && isOpen;
 
   factory MarketplaceStore.fromMap(String id, Map<String, Object?> data) {
     final categoryList = _stringList(data['categories']);
+    final storeHours = data['storeHours'] is Map
+        ? data['storeHours'] as Map
+        : const {};
+    final location = data['location'] is Map
+        ? data['location'] as Map
+        : const {};
+    final daysOpen = _stringList(storeHours['daysOpen'] ?? data['daysOpen']);
+    final openTime =
+        storeHours['openTime'] as String? ??
+        data['openTime'] as String? ??
+        '09:00';
+    final closeTime =
+        storeHours['closeTime'] as String? ??
+        data['closeTime'] as String? ??
+        '20:00';
+    final hoursLabel =
+        data['openingHoursLabel'] as String? ??
+        (daysOpen.isEmpty
+            ? data['openingHours'] as String? ?? ''
+            : marketplaceHoursLabel(
+                daysOpen: daysOpen,
+                openTime: openTime,
+                closeTime: closeTime,
+              ));
+    final address =
+        location['addressLabel'] as String? ??
+        data['addressLabel'] as String? ??
+        data['storeAddress'] as String? ??
+        data['address'] as String? ??
+        '';
+    final logoUrl =
+        data['storeLogoUrl'] as String? ?? data['imageUrl'] as String? ?? '';
+    final coverUrl =
+        data['storeCoverUrl'] as String? ?? data['coverUrl'] as String? ?? '';
+    if (kDebugMode) {
+      debugPrint(
+        '[MarketplaceStore] reading store logo/cover URL for $id: logo=$logoUrl cover=$coverUrl',
+      );
+    }
     return MarketplaceStore(
       id: id,
       ownerId: data['ownerId'] as String? ?? '',
@@ -1223,12 +1626,13 @@ class MarketplaceStore {
           data['description'] as String? ??
           '',
       phone: data['storePhone'] as String? ?? data['phone'] as String? ?? '',
-      category:
-          data['category'] as String? ??
-          (categoryList.isEmpty ? '' : categoryList.first),
-      imageUrl:
-          data['storeLogoUrl'] as String? ?? data['imageUrl'] as String? ?? '',
-      coverUrl: data['storeCoverUrl'] as String? ?? '',
+      category: normalizeMarketplaceCategory(
+        data['categoryValue'] ??
+            data['category'] ??
+            (categoryList.isEmpty ? '' : categoryList.first),
+      ),
+      imageUrl: logoUrl,
+      coverUrl: coverUrl,
       status:
           data['storeStatus'] as String? ??
           data['status'] as String? ??
@@ -1243,14 +1647,29 @@ class MarketplaceStore {
           (data['storeLng'] as num?)?.toDouble() ??
           (data['lng'] as num?)?.toDouble() ??
           0,
-      address:
-          data['storeAddress'] as String? ?? data['address'] as String? ?? '',
+      address: address,
       deliveryEstimateMinutes:
           (data['deliveryEstimateMinutes'] as num?)?.toInt() ?? 30,
       categories: _stringList(data['categories']),
       deliveryAvailable: data['deliveryAvailable'] as bool? ?? true,
       pickupAvailable: data['pickupAvailable'] as bool? ?? true,
+      freeDeliveryEnabled: data['freeDeliveryEnabled'] as bool? ?? false,
+      firstOrderDealEnabled: data['firstOrderDealEnabled'] as bool? ?? false,
+      discountEnabled: data['discountEnabled'] as bool? ?? false,
+      discountLabel: data['discountLabel'] as String? ?? '',
+      featuredEnabled: data['featuredEnabled'] as bool? ?? false,
       openingHours: data['openingHours'] as String?,
+      daysOpen: daysOpen.isEmpty
+          ? const ['mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+          : daysOpen,
+      openTime: openTime,
+      closeTime: closeTime,
+      openingHoursLabel: hoursLabel,
+      addressLabel: address,
+      placeId:
+          location['placeId'] as String? ?? data['placeId'] as String? ?? '',
+      cityArea:
+          location['cityArea'] as String? ?? data['cityArea'] as String? ?? '',
       createdAt: _dateFromValue(data['createdAt']),
       updatedAt: _dateFromValue(data['updatedAt']),
       approvedAt: _dateFromValue(data['approvedAt']),
@@ -1275,9 +1694,12 @@ class MarketplaceStore {
     'storePhone': phone,
     'phone': phone,
     'category': category,
+    'categoryValue': normalizeMarketplaceCategory(category),
+    'categoryLabel': marketplaceCategoryLabel(category),
     'storeLogoUrl': imageUrl,
     'imageUrl': imageUrl,
     'storeCoverUrl': coverUrl,
+    'coverUrl': coverUrl,
     'storeStatus': status,
     'status': status,
     'rating': rating,
@@ -1288,11 +1710,39 @@ class MarketplaceStore {
     'lng': lng,
     'storeAddress': address,
     'address': address,
+    'addressLabel': addressLabel.isEmpty ? address : addressLabel,
+    'location': {
+      'addressLabel': addressLabel.isEmpty ? address : addressLabel,
+      'latitude': lat,
+      'longitude': lng,
+      'placeId': placeId,
+      'cityArea': cityArea,
+    },
     'deliveryEstimateMinutes': deliveryEstimateMinutes,
     'categories': categories,
     'deliveryAvailable': deliveryAvailable,
     'pickupAvailable': pickupAvailable,
+    'freeDeliveryEnabled': freeDeliveryEnabled,
+    'firstOrderDealEnabled': firstOrderDealEnabled,
+    'discountEnabled': discountEnabled,
+    'discountLabel': discountLabel,
+    'featuredEnabled': featuredEnabled,
     'openingHours': openingHours,
+    'openingHoursLabel': openingHoursLabel.isEmpty
+        ? marketplaceHoursLabel(
+            daysOpen: daysOpen,
+            openTime: openTime,
+            closeTime: closeTime,
+          )
+        : openingHoursLabel,
+    'storeHours': {
+      'daysOpen': daysOpen,
+      'openTime': openTime,
+      'closeTime': closeTime,
+    },
+    'daysOpen': daysOpen,
+    'openTime': openTime,
+    'closeTime': closeTime,
     'createdAt': _dateToValue(createdAt),
     'updatedAt': _dateToValue(updatedAt),
     'approvedAt': _dateToValue(approvedAt),
@@ -1321,7 +1771,19 @@ class MarketplaceStore {
     List<String>? categories,
     bool? deliveryAvailable,
     bool? pickupAvailable,
+    bool? freeDeliveryEnabled,
+    bool? firstOrderDealEnabled,
+    bool? discountEnabled,
+    String? discountLabel,
+    bool? featuredEnabled,
     String? openingHours,
+    List<String>? daysOpen,
+    String? openTime,
+    String? closeTime,
+    String? openingHoursLabel,
+    String? addressLabel,
+    String? placeId,
+    String? cityArea,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? approvedAt,
@@ -1348,7 +1810,20 @@ class MarketplaceStore {
       categories: categories ?? this.categories,
       deliveryAvailable: deliveryAvailable ?? this.deliveryAvailable,
       pickupAvailable: pickupAvailable ?? this.pickupAvailable,
+      freeDeliveryEnabled: freeDeliveryEnabled ?? this.freeDeliveryEnabled,
+      firstOrderDealEnabled:
+          firstOrderDealEnabled ?? this.firstOrderDealEnabled,
+      discountEnabled: discountEnabled ?? this.discountEnabled,
+      discountLabel: discountLabel ?? this.discountLabel,
+      featuredEnabled: featuredEnabled ?? this.featuredEnabled,
       openingHours: openingHours ?? this.openingHours,
+      daysOpen: daysOpen ?? this.daysOpen,
+      openTime: openTime ?? this.openTime,
+      closeTime: closeTime ?? this.closeTime,
+      openingHoursLabel: openingHoursLabel ?? this.openingHoursLabel,
+      addressLabel: addressLabel ?? this.addressLabel,
+      placeId: placeId ?? this.placeId,
+      cityArea: cityArea ?? this.cityArea,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       approvedAt: approvedAt ?? this.approvedAt,
@@ -1370,6 +1845,9 @@ class MarketplaceProduct {
     this.cost,
     required this.imageUrl,
     required this.category,
+    this.subcategory = '',
+    this.discountEnabled = false,
+    this.discountLabel = '',
     this.stockQuantity = 10,
     this.lowStockThreshold = 2,
     required this.isAvailable,
@@ -1388,6 +1866,9 @@ class MarketplaceProduct {
   final double? cost;
   final String imageUrl;
   final String category;
+  final String subcategory;
+  final bool discountEnabled;
+  final String discountLabel;
   final int stockQuantity;
   final int lowStockThreshold;
   final bool isAvailable;
@@ -1405,6 +1886,15 @@ class MarketplaceProduct {
       isAvailable && isVisibleToCustomers && stockStatus != 'out_of_stock';
 
   factory MarketplaceProduct.fromMap(String id, Map<String, Object?> data) {
+    final category = normalizeMarketplaceCategory(
+      data['categoryValue'] ?? data['categoryName'] ?? data['category'],
+    );
+    final imageUrl = data['imageUrl'] as String? ?? '';
+    if (kDebugMode) {
+      debugPrint(
+        '[MarketplaceProduct] reading product image URL for $id: $imageUrl',
+      );
+    }
     return MarketplaceProduct(
       id: id,
       storeId: data['storeId'] as String? ?? '',
@@ -1414,9 +1904,18 @@ class MarketplaceProduct {
       categoryId: data['categoryId'] as String?,
       price: (data['price'] as num?)?.toDouble() ?? 0,
       cost: (data['cost'] as num?)?.toDouble(),
-      imageUrl: data['imageUrl'] as String? ?? '',
-      category:
-          data['categoryName'] as String? ?? data['category'] as String? ?? '',
+      imageUrl: imageUrl,
+      category: category,
+      subcategory: normalizeMarketplaceSubcategory(
+        category,
+        data['subcategoryValue'] ??
+            data['subcategory'] ??
+            data['subcategoryName'] ??
+            data['categoryName'] ??
+            data['category'],
+      ),
+      discountEnabled: data['discountEnabled'] as bool? ?? false,
+      discountLabel: data['discountLabel'] as String? ?? '',
       stockQuantity: (data['stockQuantity'] as num?)?.toInt() ?? 10,
       lowStockThreshold: (data['lowStockThreshold'] as num?)?.toInt() ?? 2,
       isAvailable: data['isAvailable'] as bool? ?? true,
@@ -1439,11 +1938,16 @@ class MarketplaceProduct {
     'name': name,
     'description': description,
     'categoryId': categoryId,
-    'categoryName': category,
+    'categoryName': marketplaceCategoryLabel(category),
+    'categoryValue': normalizeMarketplaceCategory(category),
+    'subcategoryValue': normalizeMarketplaceSubcategory(category, subcategory),
+    'subcategoryLabel': marketplaceSubcategoryLabel(category, subcategory),
+    'discountEnabled': discountEnabled,
+    'discountLabel': discountLabel,
     'price': price,
     'cost': cost,
     'imageUrl': imageUrl,
-    'category': category,
+    'category': normalizeMarketplaceCategory(category),
     'stockQuantity': stockQuantity,
     'lowStockThreshold': lowStockThreshold,
     'stockStatus': stockStatus,
@@ -1466,6 +1970,9 @@ class MarketplaceProduct {
     double? cost,
     String? imageUrl,
     String? category,
+    String? subcategory,
+    bool? discountEnabled,
+    String? discountLabel,
     int? stockQuantity,
     int? lowStockThreshold,
     bool? isAvailable,
@@ -1484,6 +1991,9 @@ class MarketplaceProduct {
       cost: cost ?? this.cost,
       imageUrl: imageUrl ?? this.imageUrl,
       category: category ?? this.category,
+      subcategory: subcategory ?? this.subcategory,
+      discountEnabled: discountEnabled ?? this.discountEnabled,
+      discountLabel: discountLabel ?? this.discountLabel,
       stockQuantity: stockQuantity ?? this.stockQuantity,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       isAvailable: isAvailable ?? this.isAvailable,
@@ -1546,16 +2056,33 @@ class MarketplaceCartItem {
   }
 }
 
+// Delivery leg status values — stored in MarketplaceOrder.deliveryStatus.
+class MarketplaceDeliveryStatus {
+  const MarketplaceDeliveryStatus._();
+  static const none = 'none';
+  static const awaitingWorker = 'awaitingWorker';
+  static const assigned = 'assigned';
+  static const pickedUp = 'pickedUp';
+  static const onTheWay = 'onTheWay';
+  static const delivered = 'delivered';
+  static const failed = 'failed';
+  static const cancelled = 'cancelled';
+}
+
 class MarketplaceOrder {
   const MarketplaceOrder({
     required this.id,
     required this.customerId,
+    this.customerName = '',
     required this.customerPhone,
+    this.customerEmail = '',
     required this.storeId,
+    this.storeOwnerId = '',
     required this.storeName,
     this.storeAddress = '',
     this.storeLat = 0,
     this.storeLng = 0,
+    this.storePlaceId = '',
     required this.items,
     required this.subtotal,
     required this.deliveryFee,
@@ -1564,6 +2091,8 @@ class MarketplaceOrder {
     required this.deliveryLabel,
     required this.deliveryLat,
     required this.deliveryLng,
+    this.deliveryPlaceId = '',
+    this.updatedAt,
     required this.status,
     this.assignedWorkerId,
     this.assignedWorkerName,
@@ -1574,7 +2103,7 @@ class MarketplaceOrder {
     this.gross,
     this.platformCommission,
     this.workerPayout,
-    this.paymentStatus = 'manual',
+    this.paymentStatus = 'cashOnDelivery',
     this.workerPayoutStatus = 'unpaid',
     this.workerPaidAt,
     this.ownerNet,
@@ -1582,16 +2111,28 @@ class MarketplaceOrder {
     this.inventoryDeducted = false,
     this.inventoryRestored = false,
     this.inventoryRestoredAt,
+    this.deliveryStatus = '',
+    this.rejectionReason = '',
+    this.rejectedAt,
+    this.cancelledAt,
+    this.assignedAt,
+    this.readyForPickupAt,
+    this.pickedUpAt,
+    this.onTheWayAt,
   });
 
   final String id;
   final String customerId;
+  final String customerName;
   final String customerPhone;
+  final String customerEmail;
   final String storeId;
+  final String storeOwnerId;
   final String storeName;
   final String storeAddress;
   final double storeLat;
   final double storeLng;
+  final String storePlaceId;
   final List<MarketplaceCartItem> items;
   final double subtotal;
   final double deliveryFee;
@@ -1600,11 +2141,13 @@ class MarketplaceOrder {
   final String deliveryLabel;
   final double deliveryLat;
   final double deliveryLng;
+  final String deliveryPlaceId;
   final MarketplaceOrderStatus status;
   final String? assignedWorkerId;
   final String? assignedWorkerName;
   final String? assignedWorkerPhone;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final DateTime? acceptedAt;
   final DateTime? deliveredAt;
   final double? gross;
@@ -1618,20 +2161,53 @@ class MarketplaceOrder {
   final bool inventoryDeducted;
   final bool inventoryRestored;
   final DateTime? inventoryRestoredAt;
+  final String deliveryStatus;
+  final String rejectionReason;
+  final DateTime? rejectedAt;
+  final DateTime? cancelledAt;
+  final DateTime? assignedAt;
+  final DateTime? readyForPickupAt;
+  final DateTime? pickedUpAt;
+  final DateTime? onTheWayAt;
 
   int get itemCount => items.fold(0, (total, item) => total + item.quantity);
 
   factory MarketplaceOrder.fromMap(String id, Map<String, Object?> data) {
     final rawItems = data['items'];
     return MarketplaceOrder(
-      id: id,
+      id: data['orderId'] as String? ?? data['id'] as String? ?? id,
       customerId: data['customerId'] as String? ?? '',
+      customerName: data['customerName'] as String? ?? '',
       customerPhone: data['customerPhone'] as String? ?? '',
+      customerEmail: data['customerEmail'] as String? ?? '',
       storeId: data['storeId'] as String? ?? '',
+      storeOwnerId: data['storeOwnerId'] as String? ?? '',
       storeName: data['storeName'] as String? ?? '',
-      storeAddress: data['storeAddress'] as String? ?? '',
-      storeLat: (data['storeLat'] as num?)?.toDouble() ?? 0,
-      storeLng: (data['storeLng'] as num?)?.toDouble() ?? 0,
+      storeAddress:
+          (data['storeLocation'] is Map
+              ? (data['storeLocation'] as Map)['addressLabel'] as String?
+              : null) ??
+          data['storeAddress'] as String? ??
+          '',
+      storeLat:
+          (data['storeLocation'] is Map
+              ? ((data['storeLocation'] as Map)['latitude'] as num?)?.toDouble()
+              : null) ??
+          (data['storeLat'] as num?)?.toDouble() ??
+          0,
+      storeLng:
+          (data['storeLocation'] is Map
+              ? ((data['storeLocation'] as Map)['longitude'] as num?)
+                    ?.toDouble()
+              : null) ??
+          (data['storeLng'] as num?)?.toDouble() ??
+          0,
+      storePlaceId:
+          (data['storeLocation'] is Map
+              ? (data['storeLocation'] as Map)['placeId'] as String?
+              : null) ??
+          data['storePlaceId'] as String? ??
+          '',
       items: rawItems is Iterable
           ? rawItems
                 .whereType<Map>()
@@ -1645,14 +2221,38 @@ class MarketplaceOrder {
       deliveryFee: (data['deliveryFee'] as num?)?.toDouble() ?? 0,
       total: (data['total'] as num?)?.toDouble() ?? 0,
       paymentMethod: BackendPaymentMethod.fromValue(data['paymentMethod']),
-      deliveryLabel: data['deliveryLabel'] as String? ?? '',
-      deliveryLat: (data['deliveryLat'] as num?)?.toDouble() ?? 0,
-      deliveryLng: (data['deliveryLng'] as num?)?.toDouble() ?? 0,
+      deliveryLabel:
+          (data['customerLocation'] is Map
+              ? (data['customerLocation'] as Map)['addressLabel'] as String?
+              : null) ??
+          data['deliveryLabel'] as String? ??
+          '',
+      deliveryLat:
+          (data['customerLocation'] is Map
+              ? ((data['customerLocation'] as Map)['latitude'] as num?)
+                    ?.toDouble()
+              : null) ??
+          (data['deliveryLat'] as num?)?.toDouble() ??
+          0,
+      deliveryLng:
+          (data['customerLocation'] is Map
+              ? ((data['customerLocation'] as Map)['longitude'] as num?)
+                    ?.toDouble()
+              : null) ??
+          (data['deliveryLng'] as num?)?.toDouble() ??
+          0,
+      deliveryPlaceId:
+          (data['customerLocation'] is Map
+              ? (data['customerLocation'] as Map)['placeId'] as String?
+              : null) ??
+          data['deliveryPlaceId'] as String? ??
+          '',
       status: MarketplaceOrderStatus.fromValue(data['status']),
       assignedWorkerId: data['assignedWorkerId'] as String?,
       assignedWorkerName: data['assignedWorkerName'] as String?,
       assignedWorkerPhone: data['assignedWorkerPhone'] as String?,
       createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
+      updatedAt: _dateFromValue(data['updatedAt']),
       acceptedAt: _dateFromValue(data['acceptedAt']),
       deliveredAt: _dateFromValue(data['deliveredAt']),
       gross: (data['gross'] as num?)?.toDouble(),
@@ -1666,6 +2266,14 @@ class MarketplaceOrder {
       inventoryDeducted: data['inventoryDeducted'] as bool? ?? false,
       inventoryRestored: data['inventoryRestored'] as bool? ?? false,
       inventoryRestoredAt: _dateFromValue(data['inventoryRestoredAt']),
+      deliveryStatus: data['deliveryStatus'] as String? ?? '',
+      rejectionReason: data['rejectionReason'] as String? ?? '',
+      rejectedAt: _dateFromValue(data['rejectedAt']),
+      cancelledAt: _dateFromValue(data['cancelledAt']),
+      assignedAt: _dateFromValue(data['assignedAt']),
+      readyForPickupAt: _dateFromValue(data['readyForPickupAt']),
+      pickedUpAt: _dateFromValue(data['pickedUpAt']),
+      onTheWayAt: _dateFromValue(data['onTheWayAt']),
     );
   }
 
@@ -1675,14 +2283,36 @@ class MarketplaceOrder {
     return MarketplaceOrder.fromMap(snapshot.id, snapshot.data() ?? const {});
   }
 
+  String get orderStatusLabel => switch (status) {
+    MarketplaceOrderStatus.pending => 'placed',
+    MarketplaceOrderStatus.accepted => 'accepted',
+    MarketplaceOrderStatus.shopping => 'preparing',
+    MarketplaceOrderStatus.pickedUp => 'readyForPickup',
+    MarketplaceOrderStatus.onTheWay => 'onTheWay',
+    MarketplaceOrderStatus.delivered => 'delivered',
+    MarketplaceOrderStatus.cancelled => 'cancelled',
+  };
+
   Map<String, Object?> toMap() => {
+    'id': id,
+    'orderId': id,
     'customerId': customerId,
+    'customerName': customerName,
     'customerPhone': customerPhone,
+    'customerEmail': customerEmail,
     'storeId': storeId,
+    'storeOwnerId': storeOwnerId,
     'storeName': storeName,
     'storeAddress': storeAddress,
     'storeLat': storeLat,
     'storeLng': storeLng,
+    'storePlaceId': storePlaceId,
+    'storeLocation': {
+      'addressLabel': storeAddress,
+      'latitude': storeLat,
+      'longitude': storeLng,
+      'placeId': storePlaceId,
+    },
     'items': items.map((item) => item.toMap()).toList(),
     'itemCount': itemCount,
     'subtotal': subtotal,
@@ -1692,11 +2322,20 @@ class MarketplaceOrder {
     'deliveryLabel': deliveryLabel,
     'deliveryLat': deliveryLat,
     'deliveryLng': deliveryLng,
+    'deliveryPlaceId': deliveryPlaceId,
+    'customerLocation': {
+      'addressLabel': deliveryLabel,
+      'latitude': deliveryLat,
+      'longitude': deliveryLng,
+      'placeId': deliveryPlaceId,
+    },
     'status': status.name,
+    'orderStatus': orderStatusLabel,
     'assignedWorkerId': assignedWorkerId,
     'assignedWorkerName': assignedWorkerName,
     'assignedWorkerPhone': assignedWorkerPhone,
     'createdAt': _dateToValue(createdAt),
+    'updatedAt': _dateToValue(updatedAt),
     'acceptedAt': _dateToValue(acceptedAt),
     'deliveredAt': _dateToValue(deliveredAt),
     'gross': gross,
@@ -1710,18 +2349,28 @@ class MarketplaceOrder {
     'inventoryDeducted': inventoryDeducted,
     'inventoryRestored': inventoryRestored,
     'inventoryRestoredAt': _dateToValue(inventoryRestoredAt),
+    'deliveryStatus': deliveryStatus,
+    'rejectionReason': rejectionReason,
+    'rejectedAt': _dateToValue(rejectedAt),
+    'cancelledAt': _dateToValue(cancelledAt),
+    'assignedAt': _dateToValue(assignedAt),
+    'readyForPickupAt': _dateToValue(readyForPickupAt),
+    'pickedUpAt': _dateToValue(pickedUpAt),
+    'onTheWayAt': _dateToValue(onTheWayAt),
   };
 
   Map<String, Object?> toFirestore() => toMap();
 
   MarketplaceOrder copyWith({
     String? id,
+    String? storeOwnerId,
     MarketplaceOrderStatus? status,
     String? assignedWorkerId,
     String? assignedWorkerName,
     String? assignedWorkerPhone,
     DateTime? acceptedAt,
     DateTime? deliveredAt,
+    DateTime? updatedAt,
     double? gross,
     double? platformCommission,
     double? workerPayout,
@@ -1733,16 +2382,28 @@ class MarketplaceOrder {
     bool? inventoryDeducted,
     bool? inventoryRestored,
     DateTime? inventoryRestoredAt,
+    String? deliveryStatus,
+    String? rejectionReason,
+    DateTime? rejectedAt,
+    DateTime? cancelledAt,
+    DateTime? assignedAt,
+    DateTime? readyForPickupAt,
+    DateTime? pickedUpAt,
+    DateTime? onTheWayAt,
   }) {
     return MarketplaceOrder(
       id: id ?? this.id,
       customerId: customerId,
+      customerName: customerName,
       customerPhone: customerPhone,
+      customerEmail: customerEmail,
       storeId: storeId,
+      storeOwnerId: storeOwnerId ?? this.storeOwnerId,
       storeName: storeName,
       storeAddress: storeAddress,
       storeLat: storeLat,
       storeLng: storeLng,
+      storePlaceId: storePlaceId,
       items: items,
       subtotal: subtotal,
       deliveryFee: deliveryFee,
@@ -1751,11 +2412,13 @@ class MarketplaceOrder {
       deliveryLabel: deliveryLabel,
       deliveryLat: deliveryLat,
       deliveryLng: deliveryLng,
+      deliveryPlaceId: deliveryPlaceId,
       status: status ?? this.status,
       assignedWorkerId: assignedWorkerId ?? this.assignedWorkerId,
       assignedWorkerName: assignedWorkerName ?? this.assignedWorkerName,
       assignedWorkerPhone: assignedWorkerPhone ?? this.assignedWorkerPhone,
       createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       acceptedAt: acceptedAt ?? this.acceptedAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       gross: gross ?? this.gross,
@@ -1769,6 +2432,14 @@ class MarketplaceOrder {
       inventoryDeducted: inventoryDeducted ?? this.inventoryDeducted,
       inventoryRestored: inventoryRestored ?? this.inventoryRestored,
       inventoryRestoredAt: inventoryRestoredAt ?? this.inventoryRestoredAt,
+      deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      assignedAt: assignedAt ?? this.assignedAt,
+      readyForPickupAt: readyForPickupAt ?? this.readyForPickupAt,
+      pickedUpAt: pickedUpAt ?? this.pickedUpAt,
+      onTheWayAt: onTheWayAt ?? this.onTheWayAt,
     );
   }
 }
