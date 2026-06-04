@@ -356,19 +356,30 @@ class AuthService {
   /// Send a password-reset email to [email].
   Future<void> sendPasswordResetEmail(String email) async {
     if (kDebugMode) {
-      debugPrint('[OMW Auth] sendPasswordResetEmail: starting…');
+      debugPrint(
+        '[OMW Auth] sendPasswordResetEmail: starting… '
+        'firebaseReady=${_firebaseService.isReady}',
+      );
     }
     if (!_firebaseService.isReady) {
       final error = FirebaseAuthException(
-        code: 'operation-not-allowed',
-        message: 'Firebase is not available.',
+        code: 'firebase-not-ready',
+        message: 'Firebase is not initialized for password reset.',
       );
       if (kDebugMode) {
         debugPrint(
-          '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+          '[OMW Auth] sendPasswordResetEmail aborted: ${error.code} — ${error.message}',
         );
       }
       throw error;
+    }
+    if (kDebugMode) {
+      try {
+        final projectId = _firebaseService.auth.app.options.projectId;
+        debugPrint('[OMW Auth] sendPasswordResetEmail: projectId=$projectId');
+      } catch (_) {
+        debugPrint('[OMW Auth] sendPasswordResetEmail: projectId unavailable');
+      }
     }
     try {
       await _firebaseService.auth.sendPasswordResetEmail(email: email);
@@ -378,7 +389,8 @@ class AuthService {
     } on FirebaseAuthException catch (error) {
       if (kDebugMode) {
         debugPrint(
-          '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+          '[OMW Auth] sendPasswordResetEmail FirebaseAuthException: '
+          'code=${error.code} message=${error.message}',
         );
       }
       rethrow;

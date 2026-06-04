@@ -1212,8 +1212,10 @@ String _friendlyPasswordResetError(FirebaseAuthException e) {
     'user-not-found' => 'No account found with this email address.',
     'network-request-failed' => 'Network error. Please check your connection.',
     'too-many-requests' => 'Too many attempts. Please wait and try again.',
+    'firebase-not-ready' =>
+      'Firebase is not connected in this build. Please contact OMW support.',
     'operation-not-allowed' =>
-      'Password reset is not available yet. Please contact OMW support.',
+      'Password reset is disabled in Firebase Authentication. Please contact OMW support.',
     _ => 'Could not send reset email. Please try again or contact support.',
   };
 }
