@@ -1071,42 +1071,43 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                 ],
               ),
             ),
-            // Firebase Console requirements (admin / developer reference)
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Firebase Console — required settings',
-                    style: TextStyle(
-                      color: Colors.blue.shade800,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
+            if (kDebugMode) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Firebase Console — required settings',
+                      style: TextStyle(
+                        color: Colors.blue.shade800,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '1. Authentication → Sign-in method → Email/Password: ON\n'
-                    '2. Authentication → Settings → Authorized domains:\n'
-                    '   localhost\n'
-                    '   jasonmatar977-hub.github.io',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontSize: 11,
-                      height: 1.6,
-                      fontFamily: 'monospace',
+                    const SizedBox(height: 4),
+                    Text(
+                      '1. Authentication → Sign-in method → Email/Password: ON\n'
+                      '2. Authentication → Settings → Authorized domains:\n'
+                      '   localhost\n'
+                      '   jasonmatar977-hub.github.io',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        fontSize: 11,
+                        height: 1.6,
+                        fontFamily: 'monospace',
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 14),
               _ErrorBox(message: _error!),
@@ -1296,7 +1297,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
       return AlertDialog(
         title: const Text('Email sent'),
         content: const Text(
-          'Password reset email sent. Please check your inbox and spam folder.',
+          'Password reset email sent. Please check your inbox and spam/junk folder. Open the link to reset your password inside OMW.',
         ),
         actions: [
           TextButton(
@@ -1354,6 +1355,297 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
               : const Text('Send reset email'),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ResetPasswordActionScreen
+// Shown when the app opens with mode=resetPassword&oobCode=… in the URL.
+// ---------------------------------------------------------------------------
+
+class ResetPasswordActionScreen extends StatefulWidget {
+  const ResetPasswordActionScreen({
+    super.key,
+    required this.oobCode,
+    required this.onDone,
+  });
+
+  final String oobCode;
+  final VoidCallback onDone;
+
+  @override
+  State<ResetPasswordActionScreen> createState() =>
+      _ResetPasswordActionScreenState();
+}
+
+class _ResetPasswordActionScreenState extends State<ResetPasswordActionScreen> {
+  final _newPasswordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  final _authService = AuthService();
+
+  bool _verifying = true;
+  bool _validCode = false;
+  bool _submitting = false;
+  bool _success = false;
+  String? _error;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyCode();
+  }
+
+  @override
+  void dispose() {
+    _newPasswordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verifyCode() async {
+    try {
+      await _authService.verifyPasswordResetCode(widget.oobCode);
+      if (mounted) {
+        setState(() {
+          _verifying = false;
+          _validCode = true;
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[ResetPasswordAction] verifyCode failed: ${e.code} ${e.message}',
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _verifying = false;
+          _error = _resetActionFriendlyError(e);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _verifying = false;
+          _error =
+              'This reset link is invalid or expired. '
+              'Please request a new password reset email.';
+        });
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    final newPassword = _newPasswordCtrl.text;
+    final confirm = _confirmCtrl.text;
+    if (newPassword.length < 6) {
+      setState(() => _error = 'Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword != confirm) {
+      setState(() => _error = 'Passwords do not match. Please try again.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await _authService.confirmPasswordReset(
+        oobCode: widget.oobCode,
+        newPassword: newPassword,
+      );
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _success = true;
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[ResetPasswordAction] confirmReset failed: ${e.code} ${e.message}',
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _error = _resetActionFriendlyError(e);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _error =
+              'Could not reset password. '
+              'Please request a new link or contact OMW support.';
+        });
+      }
+    }
+  }
+
+  String _resetActionFriendlyError(FirebaseAuthException e) => switch (e.code) {
+    'expired-action-code' ||
+    'invalid-action-code' ||
+    'missing-oob-code' ||
+    'firebase-not-ready' =>
+      'This reset link is invalid or expired. '
+          'Please request a new password reset email.',
+    'weak-password' => 'Password must be at least 6 characters.',
+    'network-request-failed' => 'Network error. Please check your connection.',
+    _ =>
+      'Could not reset password. '
+          'Please request a new link or contact OMW support.',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset your password')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(child: OwmBrandMark(size: 72, badge: true)),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Reset your password',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_verifying) ...[
+                    const SizedBox(height: 32),
+                    const Center(child: CircularProgressIndicator()),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Verifying reset link…',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ] else if (_success) ...[
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            color: Colors.green.shade600,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Password updated successfully.'
+                            ' You can now sign in.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: widget.onDone,
+                      child: const Text('Back to sign in'),
+                    ),
+                  ] else if (!_validCode) ...[
+                    const SizedBox(height: 16),
+                    _ErrorBox(
+                      message:
+                          _error ??
+                          'This reset link is invalid or expired. '
+                              'Please request a new password reset email.',
+                    ),
+                    const SizedBox(height: 24),
+                    OutlinedButton(
+                      onPressed: widget.onDone,
+                      child: const Text('Back to sign in'),
+                    ),
+                  ] else ...[
+                    Text(
+                      'Enter a new password for your OMW account.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: _newPasswordCtrl,
+                      obscureText: _obscureNew,
+                      decoration: InputDecoration(
+                        labelText: 'New password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureNew
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscureNew = !_obscureNew),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _confirmCtrl,
+                      obscureText: _obscureConfirm,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm new password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirm
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 14),
+                      _ErrorBox(message: _error!),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _submitting ? null : _submit,
+                      child: Text(
+                        _submitting ? 'Updating password…' : 'Update password',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: widget.onDone,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

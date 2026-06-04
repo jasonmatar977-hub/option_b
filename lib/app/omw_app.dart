@@ -21,10 +21,13 @@ class _OptionBAppState extends State<OptionBApp> {
   // immediately when an existing session is restored (returning user).
   bool _hasSeenWelcome = false;
   StreamSubscription<User?>? _authSubscription;
+  // Non-null when the app was opened via a Firebase password-reset link.
+  String? _resetPasswordOobCode;
 
   @override
   void initState() {
     super.initState();
+    _checkResetPasswordLink();
     if (FirebaseService.instance.isReady) {
       _authService.keepSessionPersistent();
       final user = _authService.currentUser;
@@ -55,6 +58,22 @@ class _OptionBAppState extends State<OptionBApp> {
         setState(() => _showSplash = false);
       }
     });
+  }
+
+  void _checkResetPasswordLink() {
+    if (!kIsWeb) return;
+    final uri = Uri.base;
+    final mode = uri.queryParameters['mode'];
+    final oobCode = uri.queryParameters['oobCode'];
+    if (kDebugMode) {
+      debugPrint(
+        '[OMW] _checkResetPasswordLink: mode=$mode '
+        'oobCode=${oobCode?.isNotEmpty == true ? "present" : "absent"}',
+      );
+    }
+    if (mode == 'resetPassword' && oobCode != null && oobCode.isNotEmpty) {
+      _resetPasswordOobCode = oobCode;
+    }
   }
 
   Future<void> _restoreFirebaseSession(User user) async {
@@ -217,6 +236,11 @@ class _OptionBAppState extends State<OptionBApp> {
     Widget home;
     if (_showSplash || _restoringSession) {
       home = const BrandedSplashScreen();
+    } else if (_resetPasswordOobCode != null) {
+      home = ResetPasswordActionScreen(
+        oobCode: _resetPasswordOobCode!,
+        onDone: () => setState(() => _resetPasswordOobCode = null),
+      );
     } else if (!_hasSeenWelcome) {
       // Fresh open with no active session → show welcome branding page.
       home = OmwWelcomeScreen(

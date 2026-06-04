@@ -443,7 +443,17 @@ class AuthService {
       }
     }
     try {
-      await _firebaseService.auth.sendPasswordResetEmail(email: email);
+      // handleCodeInApp:true → Firebase embeds the oobCode in the continue URL
+      // so the OMW web app receives mode=resetPassword&oobCode=… and can
+      // present its own ResetPasswordActionScreen instead of the Firebase
+      // hosted reset page.
+      await _firebaseService.auth.sendPasswordResetEmail(
+        email: email,
+        actionCodeSettings: ActionCodeSettings(
+          url: 'https://jasonmatar977-hub.github.io/option_b/',
+          handleCodeInApp: true,
+        ),
+      );
       if (kDebugMode) {
         debugPrint('[OMW Auth] sendPasswordResetEmail: sent OK.');
       }
@@ -455,6 +465,48 @@ class AuthService {
         );
       }
       rethrow;
+    }
+  }
+
+  /// Verify that [oobCode] from a password-reset link is still valid.
+  /// Returns the email address the reset was requested for.
+  Future<String> verifyPasswordResetCode(String oobCode) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[OMW Auth] verifyPasswordResetCode: firebaseReady=${_firebaseService.isReady}',
+      );
+    }
+    if (!_firebaseService.isReady) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-ready',
+        message: 'Firebase is not initialized.',
+      );
+    }
+    return _firebaseService.auth.verifyPasswordResetCode(oobCode);
+  }
+
+  /// Complete a password reset with [oobCode] obtained from the reset link.
+  Future<void> confirmPasswordReset({
+    required String oobCode,
+    required String newPassword,
+  }) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[OMW Auth] confirmPasswordReset: firebaseReady=${_firebaseService.isReady}',
+      );
+    }
+    if (!_firebaseService.isReady) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-ready',
+        message: 'Firebase is not initialized.',
+      );
+    }
+    await _firebaseService.auth.confirmPasswordReset(
+      code: oobCode,
+      newPassword: newPassword,
+    );
+    if (kDebugMode) {
+      debugPrint('[OMW Auth] confirmPasswordReset: success.');
     }
   }
 
