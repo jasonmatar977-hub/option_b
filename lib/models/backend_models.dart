@@ -2092,6 +2092,9 @@ class MarketplaceOrder {
     required this.deliveryLat,
     required this.deliveryLng,
     this.deliveryPlaceId = '',
+    this.distanceKm,
+    this.deliveryFeeRateType = '',
+    this.deliveryFeeCalculatedAt,
     this.updatedAt,
     required this.status,
     this.assignedWorkerId,
@@ -2142,6 +2145,9 @@ class MarketplaceOrder {
   final double deliveryLat;
   final double deliveryLng;
   final String deliveryPlaceId;
+  final double? distanceKm;
+  final String deliveryFeeRateType;
+  final DateTime? deliveryFeeCalculatedAt;
   final MarketplaceOrderStatus status;
   final String? assignedWorkerId;
   final String? assignedWorkerName;
@@ -2247,6 +2253,9 @@ class MarketplaceOrder {
               : null) ??
           data['deliveryPlaceId'] as String? ??
           '',
+      distanceKm: (data['distanceKm'] as num?)?.toDouble(),
+      deliveryFeeRateType: data['deliveryFeeRateType'] as String? ?? '',
+      deliveryFeeCalculatedAt: _dateFromValue(data['deliveryFeeCalculatedAt']),
       status: MarketplaceOrderStatus.fromValue(data['status']),
       assignedWorkerId: data['assignedWorkerId'] as String?,
       assignedWorkerName: data['assignedWorkerName'] as String?,
@@ -2323,6 +2332,9 @@ class MarketplaceOrder {
     'deliveryLat': deliveryLat,
     'deliveryLng': deliveryLng,
     'deliveryPlaceId': deliveryPlaceId,
+    'distanceKm': distanceKm,
+    'deliveryFeeRateType': deliveryFeeRateType,
+    'deliveryFeeCalculatedAt': _dateToValue(deliveryFeeCalculatedAt),
     'customerLocation': {
       'addressLabel': deliveryLabel,
       'latitude': deliveryLat,
@@ -2413,6 +2425,9 @@ class MarketplaceOrder {
       deliveryLat: deliveryLat,
       deliveryLng: deliveryLng,
       deliveryPlaceId: deliveryPlaceId,
+      distanceKm: distanceKm,
+      deliveryFeeRateType: deliveryFeeRateType,
+      deliveryFeeCalculatedAt: deliveryFeeCalculatedAt,
       status: status ?? this.status,
       assignedWorkerId: assignedWorkerId ?? this.assignedWorkerId,
       assignedWorkerName: assignedWorkerName ?? this.assignedWorkerName,
@@ -2442,4 +2457,147 @@ class MarketplaceOrder {
       onTheWayAt: onTheWayAt ?? this.onTheWayAt,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// BUTLER REQUESTS
+// ---------------------------------------------------------------------------
+
+enum ButlerRequestType { deliverStuff, buySomething }
+
+enum ButlerRequestStatus {
+  pending,
+  assigned,
+  pickedUp,
+  onTheWay,
+  delivered,
+  cancelled,
+}
+
+class ButlerRequest {
+  const ButlerRequest({
+    required this.id,
+    required this.customerId,
+    required this.requestType,
+    required this.pickupLocation,
+    required this.dropoffLocation,
+    this.customerName = '',
+    this.customerEmail = '',
+    this.customerPhone = '',
+    this.shopName = '',
+    this.shopLocation = '',
+    this.itemDescription = '',
+    this.estimatedItemCost,
+    this.notes = '',
+    this.contactPhone = '',
+    this.distanceKm,
+    this.deliveryFee,
+    this.deliveryFeeRateType = '',
+    this.deliveryFeeCalculatedAt,
+    this.status = ButlerRequestStatus.pending,
+    this.assignedWorkerId,
+    this.assignedWorkerName,
+    this.paymentStatus = 'cashOnDelivery',
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String customerId;
+  final String customerName;
+  final String customerEmail;
+  final String customerPhone;
+  final ButlerRequestType requestType;
+  final String pickupLocation;
+  final String dropoffLocation;
+  final String shopName;
+  final String shopLocation;
+  final String itemDescription;
+  final double? estimatedItemCost;
+  final String notes;
+  final String contactPhone;
+  final double? distanceKm;
+  final double? deliveryFee;
+  final String deliveryFeeRateType;
+  final DateTime? deliveryFeeCalculatedAt;
+  final ButlerRequestStatus status;
+  final String? assignedWorkerId;
+  final String? assignedWorkerName;
+  final String paymentStatus;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  bool get isActive =>
+      status != ButlerRequestStatus.delivered &&
+      status != ButlerRequestStatus.cancelled;
+
+  factory ButlerRequest.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data()! as Map<String, dynamic>;
+    return ButlerRequest(
+      id: doc.id,
+      customerId: data['customerId'] as String? ?? '',
+      customerName: data['customerName'] as String? ?? '',
+      customerEmail: data['customerEmail'] as String? ?? '',
+      customerPhone: data['customerPhone'] as String? ?? '',
+      requestType: data['requestType'] == 'buySomething'
+          ? ButlerRequestType.buySomething
+          : ButlerRequestType.deliverStuff,
+      pickupLocation: data['pickupLocation'] as String? ?? '',
+      dropoffLocation: data['dropoffLocation'] as String? ?? '',
+      shopName: data['shopName'] as String? ?? '',
+      shopLocation: data['shopLocation'] as String? ?? '',
+      itemDescription: data['itemDescription'] as String? ?? '',
+      estimatedItemCost: (data['estimatedItemCost'] as num?)?.toDouble(),
+      notes: data['notes'] as String? ?? '',
+      contactPhone: data['contactPhone'] as String? ?? '',
+      distanceKm: (data['distanceKm'] as num?)?.toDouble(),
+      deliveryFee: (data['deliveryFee'] as num?)?.toDouble(),
+      deliveryFeeRateType: data['deliveryFeeRateType'] as String? ?? '',
+      deliveryFeeCalculatedAt: _dateFromValue(data['deliveryFeeCalculatedAt']),
+      status: _statusFromString(data['status'] as String? ?? 'pending'),
+      assignedWorkerId: data['assignedWorkerId'] as String?,
+      assignedWorkerName: data['assignedWorkerName'] as String?,
+      paymentStatus: data['paymentStatus'] as String? ?? 'cashOnDelivery',
+      createdAt: _dateFromValue(data['createdAt']),
+      updatedAt: _dateFromValue(data['updatedAt']),
+    );
+  }
+
+  static ButlerRequestStatus _statusFromString(String s) => switch (s) {
+    'assigned' => ButlerRequestStatus.assigned,
+    'pickedUp' => ButlerRequestStatus.pickedUp,
+    'onTheWay' => ButlerRequestStatus.onTheWay,
+    'delivered' => ButlerRequestStatus.delivered,
+    'cancelled' => ButlerRequestStatus.cancelled,
+    _ => ButlerRequestStatus.pending,
+  };
+
+  Map<String, dynamic> toFirestore() => {
+    'customerId': customerId,
+    'customerName': customerName,
+    'customerEmail': customerEmail,
+    'customerPhone': customerPhone,
+    'requestType': requestType == ButlerRequestType.buySomething
+        ? 'buySomething'
+        : 'deliverStuff',
+    'pickupLocation': pickupLocation,
+    'dropoffLocation': dropoffLocation,
+    'shopName': shopName,
+    'shopLocation': shopLocation,
+    'itemDescription': itemDescription,
+    if (estimatedItemCost != null) 'estimatedItemCost': estimatedItemCost,
+    'notes': notes,
+    'contactPhone': contactPhone,
+    if (distanceKm != null) 'distanceKm': distanceKm,
+    if (deliveryFee != null) 'deliveryFee': deliveryFee,
+    'deliveryFeeRateType': deliveryFeeRateType,
+    if (deliveryFeeCalculatedAt != null)
+      'deliveryFeeCalculatedAt': _dateToValue(deliveryFeeCalculatedAt),
+    'status': status.name,
+    if (assignedWorkerId != null) 'assignedWorkerId': assignedWorkerId,
+    if (assignedWorkerName != null) 'assignedWorkerName': assignedWorkerName,
+    'paymentStatus': paymentStatus,
+    'createdAt': _dateToValue(createdAt ?? DateTime.now()),
+    'updatedAt': _dateToValue(updatedAt ?? DateTime.now()),
+  };
 }

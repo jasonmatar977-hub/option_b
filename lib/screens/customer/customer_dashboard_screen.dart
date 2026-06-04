@@ -891,34 +891,32 @@ class CustomerOrdersScreen extends StatelessWidget {
                   }
                   final orders = snapshot.data ?? const [];
                   if (orders.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.receipt_long_outlined,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No orders yet',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
+                    return ListView(
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.receipt_long_outlined,
+                                size: 64,
+                                color: Colors.grey,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Your marketplace orders will appear here.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                          ],
+                              SizedBox(height: 16),
+                              Text(
+                                'No marketplace orders yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        _CustomerButlerRequestsSection(userId: user.uid),
+                      ],
                     );
                   }
                   final active = orders
@@ -980,7 +978,9 @@ class CustomerOrdersScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 18),
                       ],
+                      _CustomerButlerRequestsSection(userId: user.uid),
                     ],
                   );
                 },
@@ -1131,6 +1131,151 @@ class _CustomerOrderRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Butler requests section in customer orders screen
+// ---------------------------------------------------------------------------
+
+class _CustomerButlerRequestsSection extends StatelessWidget {
+  const _CustomerButlerRequestsSection({required this.userId});
+
+  final String userId;
+
+  String _statusLabel(backend.ButlerRequestStatus s) => switch (s) {
+    backend.ButlerRequestStatus.pending => 'Pending',
+    backend.ButlerRequestStatus.assigned => 'Partner assigned',
+    backend.ButlerRequestStatus.pickedUp => 'Picked up',
+    backend.ButlerRequestStatus.onTheWay => 'On the way',
+    backend.ButlerRequestStatus.delivered => 'Delivered',
+    backend.ButlerRequestStatus.cancelled => 'Cancelled',
+  };
+
+  Color _statusColor(backend.ButlerRequestStatus s) => switch (s) {
+    backend.ButlerRequestStatus.delivered => Colors.green.shade700,
+    backend.ButlerRequestStatus.cancelled => Colors.red.shade700,
+    _ => kDeepGold,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (!FirebaseService.instance.isReady) return const SizedBox.shrink();
+    return StreamBuilder<List<backend.ButlerRequest>>(
+      stream: ButlerService().watchCustomerRequests(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        final requests = snapshot.data ?? const [];
+        if (requests.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Butler requests',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            ...requests.map(
+              (req) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ButlerRequestDetailsScreen(request: req),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: kBrandBlack,
+                          child: Icon(
+                            req.requestType == backend.ButlerRequestType.buySomething
+                                ? Icons.shopping_cart_outlined
+                                : Icons.local_shipping_outlined,
+                            color: kAccentYellow,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                req.requestType ==
+                                        backend.ButlerRequestType.buySomething
+                                    ? 'Buy something'
+                                    : 'Deliver your stuff',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                req.dropoffLocation,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _statusColor(
+                                    req.status,
+                                  ).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  _statusLabel(req.status),
+                                  style: TextStyle(
+                                    color: _statusColor(req.status),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

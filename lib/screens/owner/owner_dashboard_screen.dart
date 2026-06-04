@@ -194,6 +194,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   .toList(),
               onCancel: _cancelJob,
             ),
+            const SizedBox(height: 18),
+            const _AdminButlerRequestsPanel(),
             const SizedBox(height: 16),
             const Text(
               'Workers',

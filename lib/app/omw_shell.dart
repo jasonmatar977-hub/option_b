@@ -229,18 +229,7 @@ class _OmwMainShellState extends State<OmwMainShell> {
     );
   }
 
-  // Simple Butler placeholder tab. The old delivery/taxi map code is preserved
-  // above as _deliveryTab/_rideTab and is intentionally not wired here.
-  Widget _butlerTab() {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Butler')),
-      body: const SafeArea(
-        child: Center(
-          child: Text('Butler coming soon — reserved for future features.'),
-        ),
-      ),
-    );
-  }
+  Widget _butlerTab() => const ButlerScreen();
 
   Widget _accountTab() {
     final user = AuthService().currentUser;

@@ -407,6 +407,48 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // BUTLER REQUESTS
+    // -------------------------------------------------------------------------
+    match /butlerRequests/{requestId} {
+      // Customer reads own; worker reads pending or own assigned; admin reads all.
+      allow read: if isOwnerOrAdmin()
+        || (isSignedIn() && resource.data.customerId == uid())
+        || (isWorkerOrAdmin()
+            && (resource.data.get('status', '') == 'pending'
+                || resource.data.get('assignedWorkerId', '') == uid()));
+
+      // Signed-in customer creates own request; must start pending, no worker fields.
+      allow create: if isSignedIn()
+        && request.resource.data.customerId == uid()
+        && request.resource.data.get('status', 'pending') == 'pending'
+        && !request.resource.data.keys()
+             .hasAny(['assignedWorkerId', 'assignedWorkerName']);
+
+      // Worker claims a pending unassigned request (sets status→assigned, assigns self).
+      // Worker updates own assigned request status (pickedUp → onTheWay → delivered).
+      // Admin/owner can update anything.
+      allow update: if isOwnerOrAdmin()
+        || (isWorkerOrAdmin()
+            && resource.data.get('status', '') == 'pending'
+            && !resource.data.keys().hasAny(['assignedWorkerId'])
+            && request.resource.data.get('status', '') == 'assigned'
+            && request.resource.data.get('assignedWorkerId', '') == uid()
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['customerId', 'requestType', 'pickupLocation',
+                          'dropoffLocation', 'itemDescription']))
+        || (isWorkerOrAdmin()
+            && resource.data.get('assignedWorkerId', '') == uid()
+            && request.resource.data.get('assignedWorkerId', '') == uid()
+            && request.resource.data.get('status', '') in
+               ['pickedUp', 'onTheWay', 'delivered', 'cancelled']
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['customerId', 'requestType', 'pickupLocation',
+                          'dropoffLocation', 'itemDescription']));
+
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
     // OTP SESSIONS — backend only (Cloud Functions use Admin SDK, bypass rules)
     // -------------------------------------------------------------------------
     match /whatsappOtpSessions/{sessionId} {

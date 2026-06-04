@@ -2606,6 +2606,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   workerPhone: _firebaseWorkerPhone(),
                 ),
                 const SizedBox(height: 16),
+                _WorkerButlerJobsPanel(
+                  workerId: AuthService().currentUser?.uid ?? '',
+                  workerName: _firebaseWorkerName(),
+                ),
+                const SizedBox(height: 16),
               ],
               if (!_accepted) ...[
                 if (useFirebaseJobs)

@@ -671,6 +671,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   List<PlaceSuggestion> _deliverySuggestions = const [];
   bool _locating = false;
   bool _placing = false;
+  double? _distanceKm;
 
   @override
   void initState() {
@@ -680,6 +681,8 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
     _deliveryPoint = widget.deliveryLabel.trim().isEmpty
         ? null
         : widget.deliveryPoint;
+    // Compute initial distance if both store coords and delivery point are known.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateDistance());
   }
 
   @override
@@ -690,8 +693,56 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
   }
 
   double get _subtotal => _items.fold(0, (sum, item) => sum + item.total);
-  double get _deliveryFee => _items.isEmpty ? 0 : 3.0;
-  double get _total => _subtotal + _deliveryFee;
+
+  // Returns null when fee hasn't been calculated (no coordinates yet).
+  double? get _deliveryFee {
+    if (_items.isEmpty) return 0;
+    final dist = _distanceKm;
+    return dist != null
+        ? DeliveryPricingService.calculateDeliveryFee(dist)
+        : null;
+  }
+
+  bool get _feeConfirmed => _distanceKm != null && _items.isNotEmpty;
+
+  // Total excludes delivery fee until it is calculated.
+  double get _total => _subtotal + (_deliveryFee ?? 0);
+
+  // True when the active store has coordinates and therefore requires fee calc.
+  bool get _requiresFeeCalculation {
+    final store = _activeStore;
+    if (store == null) return false;
+    return store.lat != 0 || store.lng != 0;
+  }
+
+  backend.MarketplaceStore? get _activeStore {
+    if (_items.isEmpty) return null;
+    final storeId = _items.first.storeId;
+    try {
+      return widget.stores.firstWhere((s) => s.id == storeId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _updateDistance() {
+    final store = _activeStore;
+    final point = _deliveryPoint;
+    if (store == null ||
+        point == null ||
+        (store.lat == 0 && store.lng == 0) ||
+        (point.latitude == 0 && point.longitude == 0)) {
+      if (mounted) setState(() => _distanceKm = null);
+      return;
+    }
+    final dist = DeliveryPricingService.calculateDistanceKm(
+      store.lat,
+      store.lng,
+      point.latitude,
+      point.longitude,
+    );
+    if (mounted) setState(() => _distanceKm = dist);
+  }
 
   void _sync() => widget.onCartChanged(List.of(_items));
 
@@ -724,6 +775,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
       _deliveryPoint = suggestion.localPoint ?? _deliveryPoint;
       _deliverySuggestions = const [];
     });
+    _updateDistance();
   }
 
   void _setDeliveryPoint(DemoMapPoint point) {
@@ -734,6 +786,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
             '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
       }
     });
+    _updateDistance();
   }
 
   Future<void> _useCurrentLocation() async {
@@ -742,7 +795,7 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
     if (!mounted) return;
     setState(() => _locating = false);
     if (result.point != null) {
-      _setDeliveryPoint(result.point!);
+      _setDeliveryPoint(result.point!); // also calls _updateDistance
       if (_deliveryCtrl.text.trim().isEmpty) {
         _deliveryCtrl.text = 'Current location';
       }
@@ -768,6 +821,16 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
     if (_paymentMethod == PaymentMethod.card) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Card payments coming soon.')),
+      );
+      return;
+    }
+    if (_requiresFeeCalculation && _distanceKm == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select your delivery location to calculate the delivery fee.',
+          ),
+        ),
       );
       return;
     }
@@ -803,13 +866,18 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
         storePlaceId: store.placeId,
         items: _items,
         subtotal: _subtotal,
-        deliveryFee: _deliveryFee,
+        deliveryFee: _deliveryFee ?? 0,
         total: _total,
         paymentMethod: backendPaymentMethodFor(_paymentMethod),
         deliveryLabel: deliveryLabel,
         deliveryLat: deliveryPoint?.latitude ?? 0,
         deliveryLng: deliveryPoint?.longitude ?? 0,
         deliveryPlaceId: _deliveryPlaceId,
+        distanceKm: _distanceKm,
+        deliveryFeeRateType: _distanceKm != null
+            ? DeliveryPricingService.rateType(_distanceKm!)
+            : '',
+        deliveryFeeCalculatedAt: _distanceKm != null ? DateTime.now() : null,
         status: backend.MarketplaceOrderStatus.pending,
         createdAt: DateTime.now(),
       );
@@ -988,8 +1056,14 @@ class _MarketplaceCartScreenState extends State<MarketplaceCartScreen> {
             _CartTotals(
               subtotal: _subtotal,
               deliveryFee: _deliveryFee,
-              total: _total,
+              total: _feeConfirmed ? _total : null,
             ),
+            const SizedBox(height: 8),
+            if (_items.isNotEmpty)
+              _DeliveryFeeNote(
+                distanceKm: _distanceKm,
+                confirmed: _feeConfirmed,
+              ),
             const SizedBox(height: 18),
             PrimaryCtaButton(
               label: _placing ? 'Placing order...' : 'Place marketplace order',
@@ -2582,8 +2656,10 @@ class _CartTotals extends StatelessWidget {
   });
 
   final double subtotal;
-  final double deliveryFee;
-  final double total;
+  // null  → fee not yet calculated (no coordinates)
+  final double? deliveryFee;
+  // null  → omit the total row (fee pending, only show subtotal)
+  final double? total;
 
   @override
   Widget build(BuildContext context) {
@@ -2600,17 +2676,66 @@ class _CartTotals extends StatelessWidget {
             value: '\$${subtotal.toStringAsFixed(2)}',
           ),
           const SizedBox(height: 8),
-          _TotalsRow(
-            label: 'Delivery fee',
-            value: '\$${deliveryFee.toStringAsFixed(2)}',
-          ),
+          deliveryFee != null
+              ? _TotalsRow(
+                  label: 'Delivery fee',
+                  value: '\$${deliveryFee!.toStringAsFixed(2)}',
+                )
+              : const _TotalsRow(
+                  label: 'Delivery fee',
+                  value: 'Pending',
+                  muted: true,
+                ),
           const Divider(color: kMutedText, height: 20),
-          _TotalsRow(
-            label: 'Total',
-            value: '\$${total.toStringAsFixed(2)}',
-            highlight: true,
+          total != null
+              ? _TotalsRow(
+                  label: 'Total',
+                  value: '\$${total!.toStringAsFixed(2)}',
+                  highlight: true,
+                )
+              : const _TotalsRow(
+                  label: 'Total',
+                  value: 'Select location',
+                  highlight: true,
+                  muted: true,
+                ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeliveryFeeNote extends StatelessWidget {
+  const _DeliveryFeeNote({required this.distanceKm, required this.confirmed});
+
+  final double? distanceKm;
+  final bool confirmed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (confirmed && distanceKm != null) {
+      return Row(
+        children: [
+          const Icon(Icons.route_outlined, size: 14, color: kDeepGold),
+          const SizedBox(width: 6),
+          Text(
+            '${distanceKm!.toStringAsFixed(1)} km'
+            ' — \$${DeliveryPricingService.formatMoney(DeliveryPricingService.calculateDeliveryFee(distanceKm!))} delivery fee',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
+      );
+    }
+    return Text(
+      'Delivery fee will be confirmed after location is selected.',
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.grey.shade600,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -2622,11 +2747,13 @@ class _TotalsRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.highlight = false,
+    this.muted = false,
   });
 
   final String label;
   final String value;
   final bool highlight;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -2644,8 +2771,12 @@ class _TotalsRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            color: highlight ? kAccentYellow : Colors.white,
-            fontWeight: highlight ? FontWeight.w900 : FontWeight.w800,
+            color: muted
+                ? kMutedText
+                : highlight
+                ? kAccentYellow
+                : Colors.white,
+            fontWeight: highlight && !muted ? FontWeight.w900 : FontWeight.w700,
             fontSize: highlight ? 17 : null,
           ),
         ),
