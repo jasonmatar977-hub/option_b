@@ -354,11 +354,6 @@ class AuthService {
   }
 
   /// Send a password-reset email to [email].
-  ///
-  /// Uses [ActionCodeSettings] with the deployed app URL so the reset link
-  /// redirects back to the correct domain after the user sets a new password.
-  /// handleCodeInApp:false keeps standard reset behaviour — not email-link
-  /// sign-in.
   Future<void> sendPasswordResetEmail(String email) async {
     if (kDebugMode) {
       debugPrint('[OMW Auth] sendPasswordResetEmail: starting…');
@@ -366,33 +361,26 @@ class AuthService {
     if (!_firebaseService.isReady) {
       final error = FirebaseAuthException(
         code: 'operation-not-allowed',
-        message:
-            'Firebase is not available. '
-            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+        message: 'Firebase is not available.',
       );
-      debugPrint(
-        '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+        );
+      }
       throw error;
     }
-    final settings = kIsWeb
-        ? ActionCodeSettings(
-            url: 'https://jasonmatar977-hub.github.io/option_b/',
-            handleCodeInApp: false,
-          )
-        : null;
     try {
-      await _firebaseService.auth.sendPasswordResetEmail(
-        email: email,
-        actionCodeSettings: settings,
-      );
+      await _firebaseService.auth.sendPasswordResetEmail(email: email);
       if (kDebugMode) {
         debugPrint('[OMW Auth] sendPasswordResetEmail: sent OK.');
       }
     } on FirebaseAuthException catch (error) {
-      debugPrint(
-        '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] sendPasswordResetEmail failed: ${error.code} ${error.message}',
+        );
+      }
       rethrow;
     }
   }
