@@ -72,6 +72,7 @@ class _OmwMainShellState extends State<OmwMainShell> {
   );
 
   // Delivery tab — courier/delivery request flow.
+  // ignore: unused_element
   Widget _deliveryTab() => MainMapScreen(
     userPhone: _phone,
     onSignOut: widget.onSignOut,
@@ -86,6 +87,9 @@ class _OmwMainShellState extends State<OmwMainShell> {
     initialService: ServiceType.ride,
   );
 
+  // Preserve worker tab widget for partner flows. Not wired to customer
+  // bottom nav — access moved to `Account` page. Suppress unused warning.
+  // ignore: unused_element
   Widget _workerTab() {
     if (!_isWorker) {
       return _WorkerTabLanding(
@@ -129,6 +133,10 @@ class _OmwMainShellState extends State<OmwMainShell> {
     );
   }
 
+  // Preserve store owner tab widget for partner flows. Not wired to
+  // customer bottom nav — access moved to `Account` page. Suppress unused
+  // warning.
+  // ignore: unused_element
   Widget _storeOwnerTab() {
     if (!_isStoreOwner) {
       return _StoreOwnerTabLanding(
@@ -164,11 +172,11 @@ class _OmwMainShellState extends State<OmwMainShell> {
       case 0:
         return _marketplace();
       case 1:
-        return _deliveryTab();
+        return _butlerTab();
       case 2:
-        return _workerTab();
+        return CustomerOrdersScreen(onSwitchAccount: widget.onSignOut);
       case 3:
-        return _storeOwnerTab();
+        return _accountTab();
       default:
         return const SizedBox.shrink();
     }
@@ -202,23 +210,333 @@ class _OmwMainShellState extends State<OmwMainShell> {
             label: 'Market',
           ),
           NavigationDestination(
-            icon: Icon(Icons.delivery_dining_outlined),
-            selectedIcon: Icon(Icons.delivery_dining),
-            label: 'Delivery',
+            icon: Icon(Icons.room_service_outlined),
+            selectedIcon: Icon(Icons.room_service),
+            label: 'Butler',
           ),
           NavigationDestination(
-            icon: Icon(Icons.work_outline),
-            selectedIcon: Icon(Icons.work),
-            label: 'Worker',
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Orders',
           ),
           NavigationDestination(
-            icon: Icon(Icons.store_outlined),
-            selectedIcon: Icon(Icons.store),
-            label: 'My Store',
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Account',
           ),
         ],
       ),
     );
+  }
+
+  // Simple Butler placeholder tab. The old delivery/taxi map code is preserved
+  // above as _deliveryTab/_rideTab and is intentionally not wired here.
+  Widget _butlerTab() {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Butler')),
+      body: const SafeArea(
+        child: Center(
+          child: Text('Butler coming soon — reserved for future features.'),
+        ),
+      ),
+    );
+  }
+
+  Widget _accountTab() {
+    final user = AuthService().currentUser;
+    final phone = _phone;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Account')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: ListView(
+            children: [
+              const SizedBox(height: 8),
+              const Text(
+                'Partner with OMW',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                runSpacing: 12,
+                spacing: 12,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.work_outline),
+                      label: const Text('Become a Worker'),
+                      onPressed: () => _launchWhatsApp(
+                        AppConfig.supportWhatsAppNumber,
+                        'Hello OMW team, I would like to apply as a worker/delivery partner. Please guide me through the onboarding process.',
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.store_outlined),
+                      label: const Text('Open a Store'),
+                      onPressed: () => _launchWhatsApp(
+                        AppConfig.supportWhatsAppNumber,
+                        'Hello OMW team, I would like to open a store on OMW. Please guide me through the onboarding process.',
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                      label: const Text('Contact OMW Support'),
+                      onPressed: () => _launchWhatsApp(
+                        AppConfig.supportWhatsAppNumber,
+                        'Hello OMW team, I need support.',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              // Worker section
+              StreamBuilder<backend.WorkerProfile?>(
+                stream: user == null
+                    ? null
+                    : WorkerService().watchWorkerProfile(user.uid),
+                builder: (context, snapshot) {
+                  final profile = snapshot.data;
+                  if (user == null) {
+                    return ListTile(
+                      leading: const Icon(Icons.work_outline),
+                      title: const Text('Worker access'),
+                      subtitle: const Text('Sign in to manage or apply.'),
+                      trailing: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => EmailAuthScreen(
+                              role: DemoRole.driver,
+                              appBarTitle: 'Worker Portal',
+                              onAuthenticated: widget.onVerify,
+                            ),
+                          ),
+                        ),
+                        child: const Text('Sign in'),
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const ListTile(
+                      title: Text('Worker access'),
+                      subtitle: Text('Loading…'),
+                    );
+                  }
+                  if (profile == null) {
+                    return ListTile(
+                      leading: const Icon(Icons.work_outline),
+                      title: const Text('Become a Worker'),
+                      subtitle: const Text(
+                        'Apply via WhatsApp to start onboarding.',
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => _launchWhatsApp(
+                          AppConfig.supportWhatsAppNumber,
+                          'Hello OMW team, I would like to apply as a worker/delivery partner. Please guide me through the onboarding process.',
+                        ),
+                        child: const Text('Contact'),
+                      ),
+                    );
+                  }
+                  switch (profile.status) {
+                    case backend.WorkerStatus.pending:
+                      return ListTile(
+                        leading: const Icon(Icons.hourglass_top),
+                        title: const Text('Worker application pending'),
+                        subtitle: const Text(
+                          'Your application is awaiting review.',
+                        ),
+                      );
+                    case backend.WorkerStatus.rejected:
+                      return ListTile(
+                        leading: const Icon(Icons.block, color: Colors.red),
+                        title: const Text('Worker application rejected'),
+                        subtitle: const Text('Contact support for details.'),
+                        trailing: TextButton(
+                          onPressed: () => _launchWhatsApp(
+                            AppConfig.supportWhatsAppNumber,
+                            'Hello OMW team, my worker application was rejected. Please advise.',
+                          ),
+                          child: const Text('Contact'),
+                        ),
+                      );
+                    case backend.WorkerStatus.approved:
+                      return ListTile(
+                        leading: const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                        ),
+                        title: const Text('Worker Dashboard'),
+                        subtitle: const Text('Access driver/worker tools.'),
+                        trailing: TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => DriverHomeScreen(
+                                userPhone: phone,
+                                onSignOut: widget.onSignOut,
+                              ),
+                            ),
+                          ),
+                          child: const Text('Open'),
+                        ),
+                      );
+                    default:
+                      return const SizedBox.shrink();
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              // Store owner section
+              StreamBuilder<List<backend.MarketplaceStore>>(
+                stream: user == null
+                    ? null
+                    : StoreCrmService().watchStoresForOwner(user.uid),
+                builder: (context, snapshot) {
+                  final stores = snapshot.data ?? const [];
+                  if (user == null) {
+                    return ListTile(
+                      leading: const Icon(Icons.store_outlined),
+                      title: const Text('Store owner access'),
+                      subtitle: const Text('Sign in to manage or apply.'),
+                      trailing: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => EmailAuthScreen(
+                              role: DemoRole.storeOwner,
+                              appBarTitle: 'Store Owner Portal',
+                              onAuthenticated: widget.onVerify,
+                            ),
+                          ),
+                        ),
+                        child: const Text('Sign in'),
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const ListTile(
+                      title: Text('Store access'),
+                      subtitle: Text('Loading…'),
+                    );
+                  }
+                  if (stores.isEmpty) {
+                    return ListTile(
+                      leading: const Icon(Icons.store_outlined),
+                      title: const Text('Open a Store'),
+                      subtitle: const Text(
+                        'Apply via WhatsApp to create a store.',
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => _launchWhatsApp(
+                          AppConfig.supportWhatsAppNumber,
+                          'Hello OMW team, I would like to open a store on OMW. Please guide me through the onboarding process.',
+                        ),
+                        child: const Text('Contact'),
+                      ),
+                    );
+                  }
+                  // Show primary store status (first store)
+                  final store = stores.first;
+                  if (store.status == 'pending' ||
+                      store.status == 'pending_approval') {
+                    return ListTile(
+                      leading: const Icon(Icons.hourglass_top),
+                      title: Text('Store "${store.name}" pending'),
+                      subtitle: const Text(
+                        'Your store profile is awaiting approval.',
+                      ),
+                    );
+                  }
+                  if (store.status == 'rejected') {
+                    return ListTile(
+                      leading: const Icon(Icons.block, color: Colors.red),
+                      title: Text('Store "${store.name}" rejected'),
+                      subtitle: const Text('Contact support for details.'),
+                      trailing: TextButton(
+                        onPressed: () => _launchWhatsApp(
+                          AppConfig.supportWhatsAppNumber,
+                          'Hello OMW team, my store was rejected. Please advise.',
+                        ),
+                        child: const Text('Contact'),
+                      ),
+                    );
+                  }
+                  return ListTile(
+                    leading: const Icon(Icons.store),
+                    title: Text('Store "${store.name}" Dashboard'),
+                    subtitle: const Text('Manage products and orders'),
+                    trailing: TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StoreOwnerDashboardScreen(
+                            userPhone: phone,
+                            onSignOut: widget.onSignOut,
+                          ),
+                        ),
+                      ),
+                      child: const Text('Open'),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              if (_isAdmin) ...[
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: const Text('Admin Dashboard'),
+                  subtitle: const Text('Owner/admin tools (private).'),
+                  trailing: TextButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/admin'),
+                    child: const Text('Open'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchWhatsApp(String supportNumber, String text) async {
+    if (supportNumber.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Support WhatsApp number is not configured yet.'),
+          ),
+        );
+      }
+      return;
+    }
+    final uri = Uri.parse(
+      'https://wa.me/$supportNumber?text=${Uri.encodeComponent(text)}',
+    );
+    var launched = false;
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not open WhatsApp. Please check that WhatsApp is installed.',
+          ),
+        ),
+      );
+    }
   }
 }
 
