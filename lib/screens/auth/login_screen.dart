@@ -1179,14 +1179,16 @@ String _emailRoleLabel(DemoRole role) => switch (role) {
 
 String _friendlyEmailAuthError(FirebaseAuthException e) {
   switch (e.code) {
+    case 'firebase-not-ready':
+      return 'Firebase is not connected in this build. Please contact OMW support.';
     case 'email-already-in-use':
-      return 'This email is already registered. Please sign in instead.';
+      return 'An account already exists with this email.';
     case 'invalid-email':
       return 'Please enter a valid email address.';
     case 'weak-password':
       return 'Password must be at least 6 characters.';
     case 'operation-not-allowed':
-      return 'Email/password login is not enabled in Firebase.';
+      return 'Email/password authentication is disabled for this Firebase project.';
     case 'network-request-failed':
       return 'Network error. Please check your connection.';
     case 'too-many-requests':
@@ -1197,12 +1199,14 @@ String _friendlyEmailAuthError(FirebaseAuthException e) {
     case 'invalid-credential':
       return 'Incorrect email or password.';
     case 'user-not-found':
-      return 'No account found with this email. Please create an account first.';
+      return 'No account found with this email.';
     default:
-      debugPrint(
-        '[EmailAuth] Unhandled FirebaseAuthException: ${e.code} ${e.message}',
-      );
-      return 'Authentication failed: ${e.code}';
+      if (kDebugMode) {
+        debugPrint(
+          '[EmailAuth] Unhandled FirebaseAuthException: ${e.code} ${e.message}',
+        );
+      }
+      return 'Authentication failed. Please try again or contact support.';
   }
 }
 

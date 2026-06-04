@@ -255,17 +255,36 @@ class AuthService {
     String password,
   ) async {
     if (kDebugMode) {
-      debugPrint('Email sign-up started');
+      debugPrint(
+        '[OMW Auth] createUserWithEmailAndPassword: starting… '
+        'firebaseReady=${_firebaseService.isReady}',
+      );
     }
     if (!_firebaseService.isReady) {
       final error = FirebaseAuthException(
-        code: 'operation-not-allowed',
-        message:
-            'Firebase is not available. '
-            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+        code: 'firebase-not-ready',
+        message: 'Firebase is not initialized for auth.',
       );
-      debugPrint('Email sign-up failed: ${error.code} ${error.message}');
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] createUserWithEmailAndPassword aborted: '
+          '${error.code} — ${error.message}',
+        );
+      }
       throw error;
+    }
+    if (kDebugMode) {
+      try {
+        final opts = _firebaseService.auth.app.options;
+        debugPrint(
+          '[OMW Auth] createUserWithEmailAndPassword: '
+          'projectId=${opts.projectId} authDomain=${opts.authDomain}',
+        );
+      } catch (_) {
+        debugPrint(
+          '[OMW Auth] createUserWithEmailAndPassword: app options unavailable',
+        );
+      }
     }
     try {
       await _firebaseService.auth.createUserWithEmailAndPassword(
@@ -273,27 +292,69 @@ class AuthService {
         password: password,
       );
       if (kDebugMode) {
-        debugPrint('Email sign-up success');
+        debugPrint('[OMW Auth] createUserWithEmailAndPassword: success.');
       }
     } on FirebaseAuthException catch (error) {
-      debugPrint('Email sign-up failed: ${error.code} ${error.message}');
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] createUserWithEmailAndPassword FirebaseAuthException: '
+          'code=${error.code} message=${error.message}',
+        );
+      }
       rethrow;
     }
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
-    if (!_firebaseService.isReady) {
-      throw FirebaseAuthException(
-        code: 'operation-not-allowed',
-        message:
-            'Firebase is not available. '
-            'Run with --dart-define=OMW_USE_FIREBASE=true.',
+    if (kDebugMode) {
+      debugPrint(
+        '[OMW Auth] signInWithEmailAndPassword: starting… '
+        'firebaseReady=${_firebaseService.isReady}',
       );
     }
-    await _firebaseService.auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    if (!_firebaseService.isReady) {
+      final error = FirebaseAuthException(
+        code: 'firebase-not-ready',
+        message: 'Firebase is not initialized for auth.',
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] signInWithEmailAndPassword aborted: '
+          '${error.code} — ${error.message}',
+        );
+      }
+      throw error;
+    }
+    if (kDebugMode) {
+      try {
+        final opts = _firebaseService.auth.app.options;
+        debugPrint(
+          '[OMW Auth] signInWithEmailAndPassword: '
+          'projectId=${opts.projectId} authDomain=${opts.authDomain}',
+        );
+      } catch (_) {
+        debugPrint(
+          '[OMW Auth] signInWithEmailAndPassword: app options unavailable',
+        );
+      }
+    }
+    try {
+      await _firebaseService.auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (kDebugMode) {
+        debugPrint('[OMW Auth] signInWithEmailAndPassword: success.');
+      }
+    } on FirebaseAuthException catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[OMW Auth] signInWithEmailAndPassword FirebaseAuthException: '
+          'code=${error.code} message=${error.message}',
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Send a verification email to the currently signed-in user.
