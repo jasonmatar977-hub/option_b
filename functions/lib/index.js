@@ -176,22 +176,26 @@ async function sendTwilioVerification(phoneE164) {
     const sid = twilioAccountSid.value();
     const token = twilioAuthToken.value();
     const serviceSid = twilioVerifyServiceSid.value();
+    console.log("[sendTwilio] phoneSuffix:", phoneE164.slice(-4), "| sidPresent:", !!sid, "| tokenPresent:", !!token, "| serviceSidPresent:", !!serviceSid, "| serviceSidSuffix:", serviceSid ? serviceSid.slice(-6) : "none");
     if (!sid || !token || !serviceSid) {
         throw new https_1.HttpsError("failed-precondition", "Twilio credentials are not configured.");
     }
-    console.log("[sendTwilio] starting | phoneSuffix:", phoneE164.slice(-4));
     const client = (0, twilio_1.default)(sid, token);
     try {
         const verification = await client.verify.v2
             .services(serviceSid)
             .verifications.create({ to: phoneE164, channel: "whatsapp" });
-        console.log("[sendTwilio] created | status:", verification.status);
+        console.log("[sendTwilio] sent | status:", verification.status, "| channel: whatsapp");
     }
     catch (err) {
         const e = err;
-        console.error("[sendTwilio] error | code:", e.code, "| message:", e.message);
+        console.error("[sendTwilio] error | twilioCode:", e.code, "| httpStatus:", e.status, "| message:", e.message);
+        // 20429 / 429 = rate limit; 60200 = invalid param; 20404 = service not found
         if (e.code === 20429 || e.code === 429) {
             throw new https_1.HttpsError("resource-exhausted", "Too many attempts. Please wait and try again.");
+        }
+        if (e.code === 60200 || e.code === 20404) {
+            throw new https_1.HttpsError("failed-precondition", "Could not reach verification service. Check Twilio configuration.");
         }
         throw new https_1.HttpsError("unavailable", "Could not send WhatsApp code. Please try again.");
     }
@@ -200,10 +204,10 @@ async function checkTwilioVerification(phoneE164, code) {
     const sid = twilioAccountSid.value();
     const token = twilioAuthToken.value();
     const serviceSid = twilioVerifyServiceSid.value();
+    console.log("[verifyTwilio] phoneSuffix:", phoneE164.slice(-4), "| sidPresent:", !!sid, "| tokenPresent:", !!token, "| serviceSidPresent:", !!serviceSid);
     if (!sid || !token || !serviceSid) {
         throw new https_1.HttpsError("failed-precondition", "Twilio credentials are not configured.");
     }
-    console.log("[verifyTwilio] starting | phoneSuffix:", phoneE164.slice(-4));
     const client = (0, twilio_1.default)(sid, token);
     let check;
     try {
@@ -213,9 +217,13 @@ async function checkTwilioVerification(phoneE164, code) {
     }
     catch (err) {
         const e = err;
-        console.error("[verifyTwilio] error | code:", e.code, "| message:", e.message);
-        if (e.code === 60202) {
+        console.error("[verifyTwilio] error | twilioCode:", e.code, "| httpStatus:", e.status, "| message:", e.message);
+        // 60202 = max attempts exceeded; 60200 = invalid param; 20404 = not found
+        if (e.code === 60202 || e.code === 20429) {
             throw new https_1.HttpsError("resource-exhausted", "Too many attempts. Please wait and try again.");
+        }
+        if (e.code === 60200 || e.code === 20404) {
+            throw new https_1.HttpsError("failed-precondition", "Verification service error. Please request a new code.");
         }
         throw new https_1.HttpsError("permission-denied", "Invalid or expired code.");
     }
@@ -281,9 +289,9 @@ async function handleSendWhatsAppOtp(request) {
     const phone = normalizePhone(data.phoneNumber);
     const role = normalizeRole(data.role);
     const provider = activeOtpProvider();
+    console.log("[sendWhatsAppOtp] provider:", provider, "| phoneSuffix:", phone.digits.slice(-4), "| role:", role);
     // ── Twilio send path ─────────────────────────────────────────────────────
     if (provider === "twilio") {
-        console.log("[sendWhatsAppOtp] provider=twilio | phoneSuffix:", phone.digits.slice(-4));
         // Rate-limit: one request per minute per number.
         const sessionRef = db
             .collection(otpCollection)
@@ -383,9 +391,9 @@ async function handleVerifyWhatsAppOtp(request) {
     const role = normalizeRole(data.role);
     const code = normalizeCode(data.otpCode ?? data.code);
     const provider = activeOtpProvider();
+    console.log("[verifyWhatsAppOtp] provider:", provider, "| phoneSuffix:", phone.digits.slice(-4), "| role:", role);
     // ── Twilio verify path ───────────────────────────────────────────────────
     if (provider === "twilio") {
-        console.log("[verifyWhatsAppOtp] provider=twilio | phoneSuffix:", phone.digits.slice(-4));
         await checkTwilioVerification(phone.e164, code);
         // Mark session verified (best-effort; does not block success).
         const sessionRef = db

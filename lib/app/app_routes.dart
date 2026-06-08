@@ -177,25 +177,19 @@ String _friendlyAuthError(FirebaseAuthException error) {
 String _friendlyFunctionsError(FirebaseFunctionsException error) {
   switch (error.code) {
     case 'failed-precondition':
-      if ((error.message ?? '').contains('test numbers')) {
-        return 'WhatsApp OTP test numbers are not configured yet. Please contact OMW admin.';
-      }
-      return 'WhatsApp OTP provider is not configured.';
+      return 'Could not send WhatsApp code. Please try again or contact support.';
     case 'not-found':
-      return 'WhatsApp OTP backend is not configured yet.';
+      return 'Could not send WhatsApp code. Please try again.';
     case 'invalid-argument':
       return 'Please include your country code, for example +961...';
     case 'resource-exhausted':
       return 'Too many attempts. Please wait and try again.';
     case 'deadline-exceeded':
-      return 'This verification code expired. Please request a new code.';
+      return 'Verification code expired. Please request a new code.';
     case 'unavailable':
-      return 'WhatsApp OTP backend is unavailable. Please try again.';
+      return 'Could not send WhatsApp code. Please try again.';
     case 'permission-denied':
-      if ((error.message ?? '').contains('not enabled')) {
-        return 'This WhatsApp number is not enabled for testing yet.';
-      }
-      return 'That WhatsApp verification code is not correct. Please try again.';
+      return 'Invalid or expired code. Please try again.';
     default:
       return 'WhatsApp verification failed. Please try again.';
   }
