@@ -848,13 +848,33 @@ class CustomerOrdersScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: user == null
-            ? const Center(
+            ? Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'Please sign in to view your orders.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.receipt_long_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Please log in to view your orders.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Visit the Account tab to log in with WhatsApp.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -1208,7 +1228,8 @@ class _CustomerButlerRequestsSection extends StatelessWidget {
                         CircleAvatar(
                           backgroundColor: kBrandBlack,
                           child: Icon(
-                            req.requestType == backend.ButlerRequestType.buySomething
+                            req.requestType ==
+                                    backend.ButlerRequestType.buySomething
                                 ? Icons.shopping_cart_outlined
                                 : Icons.local_shipping_outlined,
                             color: kAccentYellow,

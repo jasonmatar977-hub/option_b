@@ -207,7 +207,6 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   final TextEditingController _phoneCtrl = TextEditingController();
   String? _error;
   bool _sending = false;
-  bool _useSmsFallback = false;
 
   @override
   void dispose() {
@@ -222,8 +221,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       return;
     }
     final useFirebase = FirebaseService.instance.isReady;
-    final useWhatsApp =
-        useFirebase && AppConfig.useWhatsAppOtp && !_useSmsFallback;
+    final useWhatsApp = useFirebase && AppConfig.useWhatsAppOtp;
     if (useFirebase && !phone.startsWith('+')) {
       setState(
         () => _error = 'Please include your country code, for example +961...',
@@ -295,8 +293,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       DemoRole.customer => 'Welcome to On My Way',
     };
     final firebaseAuth = FirebaseService.instance.isReady;
-    final whatsAppAuth =
-        firebaseAuth && AppConfig.useWhatsAppOtp && !_useSmsFallback;
+    final whatsAppAuth = firebaseAuth && AppConfig.useWhatsAppOtp;
     return Scaffold(
       appBar: AppBar(title: const Text(kBrandName)),
       body: SafeArea(
@@ -312,9 +309,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
             const SizedBox(height: 8),
             Text(
               firebaseAuth
-                  ? whatsAppAuth
-                        ? 'Enter your phone number with country code. We will send a verification code to your WhatsApp number.'
-                        : 'Enter your phone number with country code. We will send an SMS verification code.'
+                  ? 'Enter your phone number with country code. We will send a verification code to your WhatsApp.'
                   : 'Enter your phone number to continue. Test verification code: 1234',
               style: TextStyle(
                 color: Colors.grey.shade700,
@@ -322,23 +317,6 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            if (firebaseAuth && AppConfig.useWhatsAppOtp) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: kAccentYellow.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: kAccentYellow.withValues(alpha: 0.45),
-                  ),
-                ),
-                child: const Text(
-                  'WhatsApp OTP is currently in test mode. Only approved tester numbers can receive codes.',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
             TextField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
@@ -356,33 +334,12 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
             const SizedBox(height: 20),
             PrimaryCtaButton(
               label: whatsAppAuth
-                  ? 'Send code on WhatsApp'
+                  ? 'Send WhatsApp code'
                   : firebaseAuth
-                  ? 'Send SMS code'
+                  ? 'Send code'
                   : 'Continue',
               onPressed: _sending ? null : _continue,
             ),
-            if (firebaseAuth && AppConfig.useWhatsAppOtp) ...[
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: _sending
-                    ? null
-                    : () => setState(() {
-                        _useSmsFallback = !_useSmsFallback;
-                        _error = null;
-                      }),
-                icon: Icon(
-                  _useSmsFallback
-                      ? Icons.chat_bubble_outline
-                      : Icons.sms_outlined,
-                ),
-                label: Text(
-                  _useSmsFallback
-                      ? 'Use WhatsApp test OTP'
-                      : 'Use emergency SMS fallback',
-                ),
-              ),
-            ],
             if (_sending) ...[
               const SizedBox(height: 14),
               const Center(child: CircularProgressIndicator()),
@@ -494,7 +451,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       setState(
         () => _error =
             'We could not verify that code. '
-            'Please check your WhatsApp or SMS message and try again.',
+            'Please check your WhatsApp message and try again.',
       );
     } finally {
       if (mounted) {
@@ -569,11 +526,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (!FirebaseService.instance.isReady || session?.isDemo == true) {
       return 'OMW test code sent to ${widget.phoneNumber}: 1234';
     }
-    if (session?.channel == AuthOtpChannel.whatsApp) {
-      return 'A verification code was requested via WhatsApp for ${widget.phoneNumber}. '
-          'Please check your WhatsApp messages.';
+    if (session?.channel == AuthOtpChannel.sms) {
+      return 'Code sent by SMS to ${widget.phoneNumber}.';
     }
-    return 'Code sent by SMS to ${widget.phoneNumber}.';
+    return 'A verification code was sent via WhatsApp to ${widget.phoneNumber}. '
+        'Please check your WhatsApp messages.';
   }
 
   Future<void> _resendCode() async {

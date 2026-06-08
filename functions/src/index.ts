@@ -2,6 +2,7 @@ import * as crypto from "crypto";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import Twilio from "twilio";
 
 admin.initializeApp();
 
@@ -14,9 +15,24 @@ const minRequestSpacingMs = 60 * 1000;
 const defaultPhoneNumberId = "1137966846065788";
 const defaultBusinessAccountId = "934349259649903";
 
+// ── Secrets ────────────────────────────────────────────────────────────────
+
 const metaAccessToken = defineSecret("META_WHATSAPP_ACCESS_TOKEN");
+const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
+const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
+const twilioVerifyServiceSid = defineSecret("TWILIO_VERIFY_SERVICE_SID");
+
+// All functions declare all secrets; only the active provider's values are accessed.
+const allSecrets = [
+  metaAccessToken,
+  twilioAccountSid,
+  twilioAuthToken,
+  twilioVerifyServiceSid,
+];
 
 type OtpRole = "customer" | "worker" | "storeOwner" | "owner";
+
+// ── Shared helpers ─────────────────────────────────────────────────────────
 
 function normalizePhone(raw: unknown): { e164: string; digits: string } {
   if (typeof raw !== "string") {
@@ -47,10 +63,10 @@ function normalizeRole(raw: unknown): OtpRole {
 
 function normalizeCode(raw: unknown): string {
   const code = String(raw ?? "").trim();
-  if (!/^\d{6}$/.test(code)) {
+  if (!/^\d{4,8}$/.test(code)) {
     throw new HttpsError(
       "invalid-argument",
-      "Verification code must be 6 digits.",
+      "Verification code must be 4–8 digits.",
     );
   }
   return code;
@@ -101,12 +117,24 @@ function generateOtp(): string {
   return value.toString().padStart(6, "0");
 }
 
+/** Returns "twilio" or "meta" based on the OTP_PROVIDER env var. */
+function activeOtpProvider(): string {
+  return (process.env.OTP_PROVIDER ?? "meta").toLowerCase().trim();
+}
+
+// ── Meta helpers (unchanged) ───────────────────────────────────────────────
+
 async function sendMetaWhatsAppText(
   phoneDigits: string,
   code: string,
 ): Promise<string> {
   const token = metaAccessToken.value();
-  console.log("[sendMeta] token present:", !!token, "| phoneDigits suffix:", phoneDigits.slice(-4));
+  console.log(
+    "[sendMeta] token present:",
+    !!token,
+    "| phoneDigits suffix:",
+    phoneDigits.slice(-4),
+  );
   if (!token) {
     throw new HttpsError(
       "failed-precondition",
@@ -153,10 +181,14 @@ async function sendMetaWhatsAppText(
   console.log("[sendMeta] HTTP status:", response.status);
   if (!response.ok) {
     console.error(
-      "[sendMeta] Meta API rejected request | status:", response.status,
-      "| error code:", body.error?.code,
-      "| error type:", body.error?.type,
-      "| error message:", body.error?.message,
+      "[sendMeta] Meta API rejected request | status:",
+      response.status,
+      "| error code:",
+      body.error?.code,
+      "| error type:",
+      body.error?.type,
+      "| error message:",
+      body.error?.message,
     );
     throw new HttpsError(
       "unavailable",
@@ -164,9 +196,102 @@ async function sendMetaWhatsAppText(
     );
   }
   const messageStatus = body.messages?.[0]?.message_status ?? "accepted";
-  console.log("[sendWhatsAppOtp] WhatsApp OTP send accepted by Meta | message_status:", messageStatus);
+  console.log(
+    "[sendWhatsAppOtp] WhatsApp OTP send accepted by Meta | message_status:",
+    messageStatus,
+  );
   return messageStatus;
 }
+
+// ── Twilio helpers ─────────────────────────────────────────────────────────
+
+async function sendTwilioVerification(phoneE164: string): Promise<void> {
+  const sid = twilioAccountSid.value();
+  const token = twilioAuthToken.value();
+  const serviceSid = twilioVerifyServiceSid.value();
+  if (!sid || !token || !serviceSid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Twilio credentials are not configured.",
+    );
+  }
+  console.log(
+    "[sendTwilio] starting | phoneSuffix:",
+    phoneE164.slice(-4),
+  );
+  const client = Twilio(sid, token);
+  try {
+    const verification = await client.verify.v2
+      .services(serviceSid)
+      .verifications.create({ to: phoneE164, channel: "whatsapp" });
+    console.log("[sendTwilio] created | status:", verification.status);
+  } catch (err: unknown) {
+    const e = err as { code?: number; message?: string };
+    console.error(
+      "[sendTwilio] error | code:",
+      e.code,
+      "| message:",
+      e.message,
+    );
+    if (e.code === 20429 || e.code === 429) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many attempts. Please wait and try again.",
+      );
+    }
+    throw new HttpsError(
+      "unavailable",
+      "Could not send WhatsApp code. Please try again.",
+    );
+  }
+}
+
+async function checkTwilioVerification(
+  phoneE164: string,
+  code: string,
+): Promise<void> {
+  const sid = twilioAccountSid.value();
+  const token = twilioAuthToken.value();
+  const serviceSid = twilioVerifyServiceSid.value();
+  if (!sid || !token || !serviceSid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Twilio credentials are not configured.",
+    );
+  }
+  console.log(
+    "[verifyTwilio] starting | phoneSuffix:",
+    phoneE164.slice(-4),
+  );
+  const client = Twilio(sid, token);
+  let check;
+  try {
+    check = await client.verify.v2
+      .services(serviceSid)
+      .verificationChecks.create({ to: phoneE164, code });
+  } catch (err: unknown) {
+    const e = err as { code?: number; message?: string };
+    console.error(
+      "[verifyTwilio] error | code:",
+      e.code,
+      "| message:",
+      e.message,
+    );
+    if (e.code === 60202) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many attempts. Please wait and try again.",
+      );
+    }
+    throw new HttpsError("permission-denied", "Invalid or expired code.");
+  }
+  console.log("[verifyTwilio] check status:", check.status);
+  if (check.status !== "approved") {
+    throw new HttpsError("permission-denied", "Invalid or expired code.");
+  }
+}
+
+// ── Auth helpers (shared) ──────────────────────────────────────────────────
 
 async function issueCustomToken(phoneNumber: string, role: OtpRole) {
   const uid = `phone:${phoneNumber}`;
@@ -192,7 +317,11 @@ async function issueCustomToken(phoneNumber: string, role: OtpRole) {
   });
 }
 
-async function upsertUserProfile(uid: string, phoneNumber: string, role: OtpRole) {
+async function upsertUserProfile(
+  uid: string,
+  phoneNumber: string,
+  role: OtpRole,
+) {
   const now = admin.firestore.FieldValue.serverTimestamp();
   const userRef = db.collection(usersCollection).doc(uid);
   const existing = await userRef.get();
@@ -223,18 +352,73 @@ async function upsertUserProfile(uid: string, phoneNumber: string, role: OtpRole
   );
 }
 
+// ── Send handler ───────────────────────────────────────────────────────────
+
 async function handleSendWhatsAppOtp(request: { data?: unknown }) {
   const data = (request.data ?? {}) as Record<string, unknown>;
   const phone = normalizePhone(data.phoneNumber);
   const role = normalizeRole(data.role);
+  const provider = activeOtpProvider();
 
+  // ── Twilio send path ─────────────────────────────────────────────────────
+  if (provider === "twilio") {
+    console.log(
+      "[sendWhatsAppOtp] provider=twilio | phoneSuffix:",
+      phone.digits.slice(-4),
+    );
+
+    // Rate-limit: one request per minute per number.
+    const sessionRef = db
+      .collection(otpCollection)
+      .doc(sessionIdFor(phone.digits));
+    const existing = await sessionRef.get();
+    const existingCreatedAt = existing.get("createdAt") as
+      | admin.firestore.Timestamp
+      | undefined;
+    if (
+      existingCreatedAt &&
+      Date.now() - existingCreatedAt.toMillis() < minRequestSpacingMs
+    ) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Please wait before requesting another code.",
+      );
+    }
+
+    await sendTwilioVerification(phone.e164);
+
+    const now = admin.firestore.Timestamp.now();
+    await sessionRef.set({
+      id: sessionRef.id,
+      phoneNumber: phone.e164,
+      normalizedPhoneNumber: phone.digits,
+      role,
+      provider: "twilio_verify",
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + expiryMs),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    console.log("[sendWhatsAppOtp] Twilio verification dispatched");
+    return {
+      sessionId: sessionRef.id,
+      success: true,
+      message: "WhatsApp verification code sent.",
+    };
+  }
+
+  // ── Meta send path (original, unchanged) ─────────────────────────────────
   const testMode = isTestMode();
   const testers = allowedTesterDigits();
   console.log(
-    "[sendWhatsAppOtp] phoneDigits suffix:", phone.digits.slice(-4),
-    "| testMode:", testMode,
-    "| allowedTestersCount:", testers.length,
-    "| tokenPresent:", !!metaAccessToken.value(),
+    "[sendWhatsAppOtp] phoneDigits suffix:",
+    phone.digits.slice(-4),
+    "| testMode:",
+    testMode,
+    "| allowedTestersCount:",
+    testers.length,
+    "| tokenPresent:",
+    !!metaAccessToken.value(),
   );
 
   try {
@@ -250,7 +434,9 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
   }
   console.log("[sendWhatsAppOtp] tester check passed");
 
-  const sessionRef = db.collection(otpCollection).doc(sessionIdFor(phone.digits));
+  const sessionRef = db
+    .collection(otpCollection)
+    .doc(sessionIdFor(phone.digits));
   const existing = await sessionRef.get();
   const existingCreatedAt = existing.get("createdAt") as
     | admin.firestore.Timestamp
@@ -271,11 +457,22 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
     providerStatus = await sendMetaWhatsAppText(phone.digits, code);
   } catch (sendErr) {
     if (sendErr instanceof HttpsError) {
-      console.error("[sendWhatsAppOtp] sendMeta threw HttpsError | code:", sendErr.code, "| message:", sendErr.message);
+      console.error(
+        "[sendWhatsAppOtp] sendMeta threw HttpsError | code:",
+        sendErr.code,
+        "| message:",
+        sendErr.message,
+      );
       throw sendErr;
     }
-    console.error("[sendWhatsAppOtp] sendMeta threw unexpected error:", String(sendErr));
-    throw new HttpsError("unavailable", "WhatsApp provider request failed. Check backend logs.");
+    console.error(
+      "[sendWhatsAppOtp] sendMeta threw unexpected error:",
+      String(sendErr),
+    );
+    throw new HttpsError(
+      "unavailable",
+      "WhatsApp provider request failed. Check backend logs.",
+    );
   }
 
   const now = admin.firestore.Timestamp.now();
@@ -289,7 +486,8 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
     phoneNumberId:
       process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? defaultPhoneNumberId,
     businessAccountId:
-      process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID ?? defaultBusinessAccountId,
+      process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID ??
+      defaultBusinessAccountId,
     otpHash: otpHash(phone.digits, code),
     expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + expiryMs),
     attempts: 0,
@@ -300,7 +498,10 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
     verifiedAt: null,
   });
 
-  console.log("[sendWhatsAppOtp] session stored | providerStatus:", providerStatus);
+  console.log(
+    "[sendWhatsAppOtp] session stored | providerStatus:",
+    providerStatus,
+  );
   return {
     sessionId: sessionRef.id,
     success: true,
@@ -308,14 +509,63 @@ async function handleSendWhatsAppOtp(request: { data?: unknown }) {
   };
 }
 
+// ── Verify handler ─────────────────────────────────────────────────────────
+
 async function handleVerifyWhatsAppOtp(request: { data?: unknown }) {
   const data = (request.data ?? {}) as Record<string, unknown>;
   const phone = normalizePhone(data.phoneNumber);
   const role = normalizeRole(data.role);
   const code = normalizeCode(data.otpCode ?? data.code);
+  const provider = activeOtpProvider();
+
+  // ── Twilio verify path ───────────────────────────────────────────────────
+  if (provider === "twilio") {
+    console.log(
+      "[verifyWhatsAppOtp] provider=twilio | phoneSuffix:",
+      phone.digits.slice(-4),
+    );
+    await checkTwilioVerification(phone.e164, code);
+
+    // Mark session verified (best-effort; does not block success).
+    const sessionRef = db
+      .collection(otpCollection)
+      .doc(sessionIdFor(phone.digits));
+    await sessionRef
+      .set(
+        {
+          verified: true,
+          verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      )
+      .catch((err: unknown) => {
+        console.warn("[verifyTwilio] session update failed (non-fatal):", err);
+      });
+
+    const uid = `phone:${phone.e164}`;
+    await upsertUserProfile(uid, phone.e164, role);
+    const customToken = await issueCustomToken(phone.e164, role);
+    return {
+      success: true,
+      customToken,
+      profile: {
+        uid,
+        phoneNumber: phone.e164,
+        whatsappNumber: phone.e164,
+        whatsappVerified: true,
+        authProvider: "whatsapp_otp_test",
+        activeRole: role,
+      },
+    };
+  }
+
+  // ── Meta verify path (original, unchanged) ───────────────────────────────
   assertTesterAllowed(phone.digits);
 
-  const sessionRef = db.collection(otpCollection).doc(sessionIdFor(phone.digits));
+  const sessionRef = db
+    .collection(otpCollection)
+    .doc(sessionIdFor(phone.digits));
   const session = await sessionRef.get();
   if (!session.exists) {
     throw new HttpsError("not-found", "Verification code was not requested.");
@@ -329,7 +579,10 @@ async function handleVerifyWhatsAppOtp(request: { data?: unknown }) {
   const max = Number(sessionData.maxAttempts ?? maxAttempts);
   if (!expiresAt || expiresAt.toMillis() < Date.now()) {
     await sessionRef.set(
-      { verified: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      {
+        verified: false,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
       { merge: true },
     );
     throw new HttpsError("deadline-exceeded", "Verification code expired.");
@@ -383,17 +636,19 @@ async function handleVerifyWhatsAppOtp(request: { data?: unknown }) {
   };
 }
 
+// ── Exports ────────────────────────────────────────────────────────────────
+
 export const sendWhatsAppOtp = onCall(
-  { secrets: [metaAccessToken] },
+  { secrets: allSecrets },
   handleSendWhatsAppOtp,
 );
 
 export const requestWhatsAppOtp = onCall(
-  { secrets: [metaAccessToken] },
+  { secrets: allSecrets },
   handleSendWhatsAppOtp,
 );
 
 export const verifyWhatsAppOtp = onCall(
-  { secrets: [metaAccessToken] },
+  { secrets: allSecrets },
   handleVerifyWhatsAppOtp,
 );
